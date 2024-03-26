@@ -271,6 +271,7 @@ public class SubProtocolWebSocketHandler
 		Assert.state(this.defaultProtocolHandler != null || !this.protocolHandlers.isEmpty(), "No handlers");
 
 		synchronized (this.lifecycleMonitor) {
+			// 通过channel在spring-message和spring-websocket模块间建立连接，订阅发布可谓是被其用的通透。
 			this.clientOutboundChannel.subscribe(this);
 			this.running = true;
 		}
