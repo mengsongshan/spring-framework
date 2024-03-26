@@ -351,6 +351,8 @@ public abstract class AbstractHttpSockJsSession extends AbstractSockJsSession {
 	protected void writeFrameInternal(SockJsFrame frame) throws IOException {
 		if (isActive()) {
 			SockJsFrameFormat frameFormat = this.frameFormat;
+
+			// 保存了response，response会更新，但通过session能辨识是对应客户端的response，此招真是高. 由于心跳的存在，利用最近一次的客户端的response发送消息，这也进行客户端支持长连接的情况下才能使用
 			ServerHttpResponse response = this.response;
 			if (frameFormat != null && response != null) {
 				String formattedFrame = frameFormat.format(frame);
