@@ -18,7 +18,6 @@ package org.springframework.web.method.support;
 
 import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
-import java.lang.reflect.Modifier;
 import java.util.Arrays;
 import java.util.Map;
 
@@ -27,8 +26,12 @@ import kotlin.jvm.JvmClassMappingKt;
 import kotlin.reflect.KClass;
 import kotlin.reflect.KFunction;
 import kotlin.reflect.KParameter;
+import kotlin.reflect.KType;
+import kotlin.reflect.full.KClasses;
 import kotlin.reflect.jvm.KCallablesJvm;
 import kotlin.reflect.jvm.ReflectJvmMapping;
+import reactor.core.publisher.Mono;
+import reactor.core.publisher.SynchronousSink;
 
 import org.springframework.context.MessageSource;
 import org.springframework.core.CoroutinesUtils;
@@ -37,10 +40,8 @@ import org.springframework.core.KotlinDetector;
 import org.springframework.core.MethodParameter;
 import org.springframework.core.ParameterNameDiscoverer;
 import org.springframework.lang.Nullable;
-import org.springframework.util.Assert;
 import org.springframework.util.CollectionUtils;
 import org.springframework.util.ObjectUtils;
-import org.springframework.util.ReflectionUtils;
 import org.springframework.validation.method.MethodValidator;
 import org.springframework.web.bind.WebDataBinder;
 import org.springframework.web.bind.support.SessionStatus;
@@ -63,9 +64,6 @@ public class InvocableHandlerMethod extends HandlerMethod {
 	private static final Object[] EMPTY_ARGS = new Object[0];
 
 	private static final Class<?>[] EMPTY_GROUPS = new Class<?>[0];
-
-	private static final ReflectionUtils.MethodFilter boxImplFilter =
-			(method -> method.isSynthetic() && Modifier.isStatic(method.getModifiers()) && method.getName().equals("box-impl"));
 
 
 	private HandlerMethodArgumentResolverComposite resolvers = new HandlerMethodArgumentResolverComposite();
@@ -128,7 +126,7 @@ public class InvocableHandlerMethod extends HandlerMethod {
 
 	/**
 	 * Set the ParameterNameDiscoverer for resolving parameter names when needed
-	 * (e.g. default request attribute name).
+	 * (for example, default request attribute name).
 	 * <p>Default is a {@link org.springframework.core.DefaultParameterNameDiscoverer}.
 	 */
 	public void setParameterNameDiscoverer(ParameterNameDiscoverer parameterNameDiscoverer) {
@@ -284,7 +282,6 @@ public class InvocableHandlerMethod extends HandlerMethod {
 
 	/**
 	 * Invoke the given Kotlin coroutine suspended function.
-	 *
 	 * <p>The default implementation invokes
 	 * {@link CoroutinesUtils#invokeSuspendingFunction(Method, Object, Object...)},
 	 * but subclasses can override this method to use
@@ -293,8 +290,10 @@ public class InvocableHandlerMethod extends HandlerMethod {
 	 * @since 6.0
 	 */
 	protected Object invokeSuspendingFunction(Method method, Object target, Object[] args) {
-		return CoroutinesUtils.invokeSuspendingFunction(method, target, args);
+		Object result = CoroutinesUtils.invokeSuspendingFunction(method, target, args);
+		return (result instanceof Mono<?> mono ? mono.handle(KotlinDelegate::handleResult) : result);
 	}
+
 
 	/**
 	 * Inner class to avoid a hard dependency on Kotlin at runtime.
@@ -302,14 +301,14 @@ public class InvocableHandlerMethod extends HandlerMethod {
 	private static class KotlinDelegate {
 
 		@Nullable
-		@SuppressWarnings("deprecation")
-		public static Object invokeFunction(Method method, Object target, Object[] args) throws InvocationTargetException, IllegalAccessException {
+		@SuppressWarnings("DataFlowIssue")
+		public static Object invokeFunction(Method method, Object target, Object[] args) throws InvocationTargetException, IllegalAccessException, NoSuchMethodException {
 			KFunction<?> function = ReflectJvmMapping.getKotlinFunction(method);
 			// For property accessors
 			if (function == null) {
 				return method.invoke(target, args);
 			}
-			if (method.isAccessible() && !KCallablesJvm.isAccessible(function)) {
+			if (!KCallablesJvm.isAccessible(function)) {
 				KCallablesJvm.setAccessible(function, true);
 			}
 			Map<KParameter, Object> argMap = CollectionUtils.newHashMap(args.length + 1);
@@ -318,23 +317,51 @@ public class InvocableHandlerMethod extends HandlerMethod {
 				switch (parameter.getKind()) {
 					case INSTANCE -> argMap.put(parameter, target);
 					case VALUE, EXTENSION_RECEIVER -> {
-						if (!parameter.isOptional() || args[index] != null) {
-							if (parameter.getType().getClassifier() instanceof KClass<?> kClass && kClass.isValue()) {
-								Class<?> javaClass = JvmClassMappingKt.getJavaClass(kClass);
-								Method[] methods = ReflectionUtils.getUniqueDeclaredMethods(javaClass, boxImplFilter);
-								Assert.state(methods.length == 1, "Unable to find a single box-impl synthetic static method in " + javaClass.getName());
-								argMap.put(parameter, ReflectionUtils.invokeMethod(methods[0], null, args[index]));
+						Object arg = args[index];
+						if (!(parameter.isOptional() && arg == null)) {
+							KType type = parameter.getType();
+							if (!(type.isMarkedNullable() && arg == null) && type.getClassifier() instanceof KClass<?> kClass
+									&& KotlinDetector.isInlineClass(JvmClassMappingKt.getJavaClass(kClass))) {
+								KFunction<?> constructor = KClasses.getPrimaryConstructor(kClass);
+								if (!KCallablesJvm.isAccessible(constructor)) {
+									KCallablesJvm.setAccessible(constructor, true);
+								}
+								arg = constructor.call(arg);
 							}
-							else {
-								argMap.put(parameter, args[index]);
-							}
+							argMap.put(parameter, arg);
 						}
 						index++;
 					}
 				}
 			}
 			Object result = function.callBy(argMap);
+			if (result != null && KotlinDetector.isInlineClass(result.getClass())) {
+				result = unbox(result);
+			}
 			return (result == Unit.INSTANCE ? null : result);
+		}
+
+		private static void handleResult(Object result, SynchronousSink<Object> sink) {
+			if (KotlinDetector.isInlineClass(result.getClass())) {
+				try {
+					Object unboxed = unbox(result);
+					if (unboxed != Unit.INSTANCE) {
+						sink.next(unboxed);
+					}
+					sink.complete();
+				}
+				catch (NoSuchMethodException | InvocationTargetException | IllegalAccessException ex) {
+					sink.error(ex);
+				}
+			}
+			else {
+				sink.next(result);
+				sink.complete();
+			}
+		}
+
+		private static Object unbox(Object result) throws InvocationTargetException, IllegalAccessException, NoSuchMethodException {
+			return result.getClass().getDeclaredMethod("unbox-impl").invoke(result);
 		}
 	}
 

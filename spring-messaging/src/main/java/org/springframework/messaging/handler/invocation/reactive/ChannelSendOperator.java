@@ -1,5 +1,5 @@
 /*
- * Copyright 2002-2022 the original author or authors.
+ * Copyright 2002-2024 the original author or authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -107,7 +107,7 @@ class ChannelSendOperator<T> extends Mono<Void> implements Scannable {
 		 * The write subscriber has subscribed, and cached signals have been
 		 * emitted to it; we're ready to switch to a simple pass-through mode
 		 * for all remaining signals.
-		 **/
+		 */
 		READY_TO_WRITE
 
 	}
@@ -181,7 +181,7 @@ class ChannelSendOperator<T> extends Mono<Void> implements Scannable {
 				requiredWriteSubscriber().onNext(item);
 				return;
 			}
-			//FIXME revisit in case of reentrant sync deadlock
+			// FIXME revisit in case of reentrant sync deadlock
 			synchronized (this) {
 				if (this.state == State.READY_TO_WRITE) {
 					requiredWriteSubscriber().onNext(item);
@@ -309,9 +309,10 @@ class ChannelSendOperator<T> extends Mono<Void> implements Scannable {
 		}
 
 		private boolean emitCachedSignals() {
-			if (this.error != null) {
+			Throwable error = this.error;
+			if (error != null) {
 				try {
-					requiredWriteSubscriber().onError(this.error);
+					requiredWriteSubscriber().onError(error);
 				}
 				finally {
 					releaseCachedItem();

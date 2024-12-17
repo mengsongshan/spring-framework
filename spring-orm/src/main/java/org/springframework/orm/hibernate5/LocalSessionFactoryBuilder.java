@@ -1,5 +1,5 @@
 /*
- * Copyright 2002-2023 the original author or authors.
+ * Copyright 2002-2024 the original author or authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -75,7 +75,7 @@ import org.springframework.util.ClassUtils;
  * adding {@link SpringSessionContext} as a default and providing convenient ways
  * to specify a JDBC {@link DataSource} and an application class loader.
  *
- * <p>This is designed for programmatic use, e.g. in {@code @Bean} factory methods;
+ * <p>This is designed for programmatic use, for example, in {@code @Bean} factory methods;
  * consider using {@link LocalSessionFactoryBean} for XML bean definition files.
  * Typically combined with {@link HibernateTransactionManager} for declarative
  * transactions against the {@code SessionFactory} and its JDBC {@code DataSource}.
@@ -159,7 +159,7 @@ public class LocalSessionFactoryBuilder extends Configuration {
 	 * @param dataSource the JDBC DataSource that the resulting Hibernate SessionFactory should be using
 	 * (may be {@code null})
 	 * @param resourceLoader the ResourceLoader to load application classes from
-	 * @param metadataSources the Hibernate MetadataSources service to use (e.g. reusing an existing one)
+	 * @param metadataSources the Hibernate MetadataSources service to use (for example, reusing an existing one)
 	 * @since 4.3
 	 */
 	public LocalSessionFactoryBuilder(
@@ -169,7 +169,7 @@ public class LocalSessionFactoryBuilder extends Configuration {
 
 		getProperties().put(AvailableSettings.CURRENT_SESSION_CONTEXT_CLASS, SpringSessionContext.class.getName());
 		if (dataSource != null) {
-			getProperties().put(AvailableSettings.DATASOURCE, dataSource);
+			getProperties().put(AvailableSettings.JAKARTA_NON_JTA_DATASOURCE, dataSource);
 		}
 		getProperties().put(AvailableSettings.CONNECTION_HANDLING,
 				PhysicalConnectionHandlingMode.DELAYED_ACQUISITION_AND_HOLD);
@@ -256,7 +256,7 @@ public class LocalSessionFactoryBuilder extends Configuration {
 	 * @since 4.3
 	 * @see AvailableSettings#MULTI_TENANT_CONNECTION_PROVIDER
 	 */
-	public LocalSessionFactoryBuilder setMultiTenantConnectionProvider(MultiTenantConnectionProvider multiTenantConnectionProvider) {
+	public LocalSessionFactoryBuilder setMultiTenantConnectionProvider(MultiTenantConnectionProvider<?> multiTenantConnectionProvider) {
 		getProperties().put(AvailableSettings.MULTI_TENANT_CONNECTION_PROVIDER, multiTenantConnectionProvider);
 		return this;
 	}
@@ -267,9 +267,10 @@ public class LocalSessionFactoryBuilder extends Configuration {
 	 * @see AvailableSettings#MULTI_TENANT_IDENTIFIER_RESOLVER
 	 */
 	@Override
-	public void setCurrentTenantIdentifierResolver(CurrentTenantIdentifierResolver currentTenantIdentifierResolver) {
+	public LocalSessionFactoryBuilder setCurrentTenantIdentifierResolver(CurrentTenantIdentifierResolver<Object> currentTenantIdentifierResolver) {
 		getProperties().put(AvailableSettings.MULTI_TENANT_IDENTIFIER_RESOLVER, currentTenantIdentifierResolver);
 		super.setCurrentTenantIdentifierResolver(currentTenantIdentifierResolver);
+		return this;
 	}
 
 	/**
@@ -281,18 +282,6 @@ public class LocalSessionFactoryBuilder extends Configuration {
 	 */
 	public LocalSessionFactoryBuilder setEntityTypeFilters(TypeFilter... entityTypeFilters) {
 		this.entityTypeFilters = entityTypeFilters;
-		return this;
-	}
-
-	/**
-	 * Add the given annotated classes in a batch.
-	 * @see #addAnnotatedClass
-	 * @see #scanPackages
-	 */
-	public LocalSessionFactoryBuilder addAnnotatedClasses(Class<?>... annotatedClasses) {
-		for (Class<?> annotatedClass : annotatedClasses) {
-			addAnnotatedClass(annotatedClass);
-		}
 		return this;
 	}
 
@@ -392,7 +381,7 @@ public class LocalSessionFactoryBuilder extends Configuration {
 	/**
 	 * Build the Hibernate {@code SessionFactory} through background bootstrapping,
 	 * using the given executor for a parallel initialization phase
-	 * (e.g. a {@link org.springframework.core.task.SimpleAsyncTaskExecutor}).
+	 * (for example, a {@link org.springframework.core.task.SimpleAsyncTaskExecutor}).
 	 * <p>{@code SessionFactory} initialization will then switch into background
 	 * bootstrap mode, with a {@code SessionFactory} proxy immediately returned for
 	 * injection purposes instead of waiting for Hibernate's bootstrapping to complete.

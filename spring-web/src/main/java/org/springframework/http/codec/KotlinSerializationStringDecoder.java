@@ -26,6 +26,7 @@ import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
 
 import org.springframework.core.ResolvableType;
+import org.springframework.core.codec.CodecException;
 import org.springframework.core.codec.Decoder;
 import org.springframework.core.codec.DecodingException;
 import org.springframework.core.codec.StringDecoder;
@@ -60,7 +61,7 @@ public abstract class KotlinSerializationStringDecoder<T extends StringFormat> e
 	 * decoding to a single {@code DataBuffer},
 	 * {@link java.nio.ByteBuffer ByteBuffer}, {@code byte[]},
 	 * {@link org.springframework.core.io.Resource Resource}, {@code String}, etc.
-	 * It can also occur when splitting the input stream, e.g. delimited text,
+	 * It can also occur when splitting the input stream, for example, delimited text,
 	 * in which case the limit applies to data buffered between delimiters.
 	 * <p>By default this is set to 256K.
 	 * @param byteCount the max number of bytes to buffer, or -1 for unlimited
@@ -101,7 +102,14 @@ public abstract class KotlinSerializationStringDecoder<T extends StringFormat> e
 			}
 			return this.stringDecoder
 					.decode(inputStream, elementType, mimeType, hints)
-					.map(string -> format().decodeFromString(serializer, string));
+					.handle((string, sink) -> {
+						try {
+							sink.next(format().decodeFromString(serializer, string));
+						}
+						catch (IllegalArgumentException ex) {
+							sink.error(processException(ex));
+						}
+					});
 		});
 	}
 
@@ -115,8 +123,20 @@ public abstract class KotlinSerializationStringDecoder<T extends StringFormat> e
 			}
 			return this.stringDecoder
 					.decodeToMono(inputStream, elementType, mimeType, hints)
-					.map(string -> format().decodeFromString(serializer, string));
+					.handle((string, sink) -> {
+						try {
+							sink.next(format().decodeFromString(serializer, string));
+							sink.complete();
+						}
+						catch (IllegalArgumentException ex) {
+							sink.error(processException(ex));
+						}
+					});
 		});
+	}
+
+	private CodecException processException(IllegalArgumentException ex) {
+		return new DecodingException("Decoding error: " + ex.getMessage(), ex);
 	}
 
 }

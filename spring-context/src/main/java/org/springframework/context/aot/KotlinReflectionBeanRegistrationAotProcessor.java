@@ -1,5 +1,5 @@
 /*
- * Copyright 2002-2023 the original author or authors.
+ * Copyright 2002-2024 the original author or authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -17,7 +17,6 @@
 package org.springframework.context.aot;
 
 import org.springframework.aot.generate.GenerationContext;
-import org.springframework.aot.hint.MemberCategory;
 import org.springframework.aot.hint.RuntimeHints;
 import org.springframework.beans.factory.aot.BeanRegistrationAotContribution;
 import org.springframework.beans.factory.aot.BeanRegistrationAotProcessor;
@@ -35,8 +34,8 @@ import org.springframework.lang.Nullable;
  */
 class KotlinReflectionBeanRegistrationAotProcessor implements BeanRegistrationAotProcessor {
 
-	@Nullable
 	@Override
+	@Nullable
 	public BeanRegistrationAotContribution processAheadOfTime(RegisteredBean registeredBean) {
 		Class<?> beanClass = registeredBean.getBeanClass();
 		if (KotlinDetector.isKotlinType(beanClass)) {
@@ -44,6 +43,7 @@ class KotlinReflectionBeanRegistrationAotProcessor implements BeanRegistrationAo
 		}
 		return null;
 	}
+
 
 	private static class AotContribution implements BeanRegistrationAotContribution {
 
@@ -60,11 +60,15 @@ class KotlinReflectionBeanRegistrationAotProcessor implements BeanRegistrationAo
 
 		private void registerHints(Class<?> type, RuntimeHints runtimeHints) {
 			if (KotlinDetector.isKotlinType(type)) {
-				runtimeHints.reflection().registerType(type, MemberCategory.INTROSPECT_DECLARED_METHODS);
+				runtimeHints.reflection().registerType(type);
 			}
 			Class<?> superClass = type.getSuperclass();
 			if (superClass != null) {
 				registerHints(superClass, runtimeHints);
+			}
+			Class<?> enclosingClass = type.getEnclosingClass();
+			if (enclosingClass != null) {
+				runtimeHints.reflection().registerType(enclosingClass);
 			}
 		}
 	}

@@ -30,6 +30,7 @@ import java.util.concurrent.Delayed;
 
 import org.junit.jupiter.api.Test;
 
+import org.springframework.core.testfixture.ide.IdeUtils;
 import org.springframework.util.ReflectionUtils;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -106,10 +107,29 @@ class BridgeMethodResolverTests {
 	}
 
 	@Test
+	void findBridgedMethodInHierarchyWithBoundedGenerics() throws Exception {
+		Method originalMethod = Bar.class.getDeclaredMethod("someMethod", Object.class, Object.class);
+		assertThat(originalMethod.isBridge()).isFalse();
+		Method bridgedMethod = BridgeMethodResolver.getMostSpecificMethod(originalMethod, SubBar.class);
+		assertThat(bridgedMethod.isBridge()).isFalse();
+		assertThat(bridgedMethod.getName()).isEqualTo("someMethod");
+		assertThat(bridgedMethod.getParameterCount()).isEqualTo(2);
+		assertThat(bridgedMethod.getParameterTypes()[0]).isEqualTo(CharSequence.class);
+	}
+
+	@Test
 	void isBridgeMethodFor() throws Exception {
 		Method bridged = MyBar.class.getDeclaredMethod("someMethod", String.class, Object.class);
 		Method other = MyBar.class.getDeclaredMethod("someMethod", Integer.class, Object.class);
-		Method bridge = MyBar.class.getDeclaredMethod("someMethod", Object.class, Object.class);
+		Method bridge;
+
+		if (IdeUtils.runningInEclipse()) {
+			bridge = InterBar.class.getDeclaredMethod("someMethod", Object.class, Object.class);
+		}
+		else {
+			bridge = MyBar.class.getDeclaredMethod("someMethod", Object.class, Object.class);
+		}
+		assertThat(bridge.isBridge()).isTrue();
 
 		assertThat(BridgeMethodResolver.isBridgeMethodFor(bridge, bridged, MyBar.class)).as("Should be bridge method").isTrue();
 		assertThat(BridgeMethodResolver.isBridgeMethodFor(bridge, other, MyBar.class)).as("Should not be bridge method").isFalse();
@@ -377,8 +397,15 @@ class BridgeMethodResolverTests {
 	}
 
 
-	public abstract static class InterBar<T> extends Bar<T> {
+	public abstract static class InterBar<T extends CharSequence> extends Bar<T> {
 
+		@Override
+		void someMethod(T theArg, Object otherArg) {
+		}
+	}
+
+
+	public abstract static class SubBar<T extends StringBuffer> extends InterBar<T> {
 	}
 
 

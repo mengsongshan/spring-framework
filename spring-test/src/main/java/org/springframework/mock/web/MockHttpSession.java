@@ -45,7 +45,6 @@ import org.springframework.util.Assert;
  * @author Vedran Pavic
  * @since 1.0.2
  */
-@SuppressWarnings("deprecation")
 public class MockHttpSession implements HttpSession {
 
 	/**
@@ -148,6 +147,7 @@ public class MockHttpSession implements HttpSession {
 	}
 
 	@Override
+	@Nullable
 	public Object getAttribute(String name) {
 		assertIsValid();
 		Assert.notNull(name, "Attribute name must not be null");
@@ -238,6 +238,12 @@ public class MockHttpSession implements HttpSession {
 		assertIsValid();
 		return this.isNew;
 	}
+
+	@Override
+	public Accessor getAccessor() {
+		return sessionConsumer -> sessionConsumer.accept(MockHttpSession.this);
+	}
+
 
 	/**
 	 * Serialize the attributes of this session into an object that can be

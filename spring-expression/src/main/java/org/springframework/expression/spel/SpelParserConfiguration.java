@@ -16,6 +16,8 @@
 
 package org.springframework.expression.spel;
 
+import java.util.Locale;
+
 import org.springframework.core.SpringProperties;
 import org.springframework.lang.Nullable;
 
@@ -32,7 +34,7 @@ import org.springframework.lang.Nullable;
 public class SpelParserConfiguration {
 
 	/**
-	 * Default maximum length permitted for a SpEL expression.
+	 * Default maximum length permitted for a SpEL expression: {@value}.
 	 * @since 5.2.24
 	 */
 	public static final int DEFAULT_MAX_EXPRESSION_LENGTH = 10_000;
@@ -46,7 +48,7 @@ public class SpelParserConfiguration {
 	static {
 		String compilerMode = SpringProperties.getProperty(SPRING_EXPRESSION_COMPILER_MODE_PROPERTY_NAME);
 		defaultCompilerMode = (compilerMode != null ?
-				SpelCompilerMode.valueOf(compilerMode.toUpperCase()) : SpelCompilerMode.OFF);
+				SpelCompilerMode.valueOf(compilerMode.toUpperCase(Locale.ROOT)) : SpelCompilerMode.OFF);
 	}
 
 

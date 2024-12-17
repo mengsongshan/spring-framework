@@ -19,7 +19,6 @@ package org.springframework.web.cors;
 import java.time.Duration;
 import java.util.ArrayList;
 import java.util.Collections;
-import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Set;
 import java.util.function.Consumer;
@@ -57,7 +56,7 @@ public class CorsConfiguration {
 
 	private static final List<String> ALL_LIST = Collections.singletonList(ALL);
 
-	private static final OriginPattern ALL_PATTERN = new OriginPattern("*");
+	private static final OriginPattern ALL_PATTERN = new OriginPattern(ALL);
 
 	private static final List<OriginPattern> ALL_PATTERN_LIST = Collections.singletonList(ALL_PATTERN);
 
@@ -126,10 +125,10 @@ public class CorsConfiguration {
 	 * A list of origins for which cross-origin requests are allowed where each
 	 * value may be one of the following:
 	 * <ul>
-	 * <li>a specific domain, e.g. {@code "https://domain1.com"}
-	 * <li>comma-delimited list of specific domains, e.g.
+	 * <li>a specific domain, for example, {@code "https://domain1.com"}
+	 * <li>comma-delimited list of specific domains, for example,
 	 * {@code "https://a1.com,https://a2.com"}; this is convenient when a value
-	 * is resolved through a property placeholder, e.g. {@code "${origin}"};
+	 * is resolved through a property placeholder, for example, {@code "${origin}"};
 	 * note that such placeholders must be resolved externally.
 	 * <li>the CORS defined special value {@code "*"} for all origins
 	 * </ul>
@@ -142,7 +141,7 @@ public class CorsConfiguration {
 	 * As a consequence, those combinations are rejected in favor of using
 	 * {@link #setAllowedOriginPatterns allowedOriginPatterns} instead.
 	 * <p>By default this is not set which means that no origins are allowed.
-	 * However, an instance of this class is often initialized further, e.g. for
+	 * However, an instance of this class is often initialized further, for example, for
 	 * {@code @CrossOrigin}, via {@link #applyPermitDefaultValues()}.
 	 */
 	public void setAllowedOrigins(@Nullable List<String> origins) {
@@ -172,6 +171,7 @@ public class CorsConfiguration {
 	/**
 	 * Variant of {@link #setAllowedOrigins} for adding one origin at a time.
 	 */
+	@SuppressWarnings("NullAway")
 	public void addAllowedOrigin(@Nullable String origin) {
 		if (origin == null) {
 			return;
@@ -198,9 +198,9 @@ public class CorsConfiguration {
 	 * domain1.com on port 8080 or port 8081
 	 * <li>{@literal https://*.domain1.com:[*]} -- domains ending with
 	 * domain1.com on any port, including the default port
-	 * <li>comma-delimited list of patters, e.g.
+	 * <li>comma-delimited list of patters, for example,
 	 * {@code "https://*.a1.com,https://*.a2.com"}; this is convenient when a
-	 * value is resolved through a property placeholder, e.g. {@code "${origin}"};
+	 * value is resolved through a property placeholder, for example, {@code "${origin}"};
 	 * note that such placeholders must be resolved externally.
 	 * </ul>
 	 * <p>In contrast to {@link #setAllowedOrigins(List) allowedOrigins} which
@@ -245,6 +245,7 @@ public class CorsConfiguration {
 	 * Variant of {@link #setAllowedOriginPatterns} for adding one origin at a time.
 	 * @since 5.3
 	 */
+	@SuppressWarnings("NullAway")
 	public void addAllowedOriginPattern(@Nullable String originPattern) {
 		if (originPattern == null) {
 			return;
@@ -274,19 +275,21 @@ public class CorsConfiguration {
 				case ']' -> withinPortRange = false;
 				case ',' -> {
 					if (!withinPortRange) {
-						valueConsumer.accept(rawValue.substring(start, current).trim());
+						String originValue = rawValue.substring(start, current).trim();
+						valueConsumer.accept(originValue);
 						start = current + 1;
 					}
 				}
 			}
 		}
 		if (start < rawValue.length()) {
-			valueConsumer.accept(rawValue.substring(start));
+			String originValue = rawValue.substring(start).trim();
+			valueConsumer.accept(originValue);
 		}
 	}
 
 	/**
-	 * Set the HTTP methods to allow, e.g. {@code "GET"}, {@code "POST"},
+	 * Set the HTTP methods to allow, for example, {@code "GET"}, {@code "POST"},
 	 * {@code "PUT"}, etc. The special value {@code "*"} allows all methods.
 	 * <p>{@code Access-Control-Allow-Methods} response header is set either
 	 * to the configured method or to {@code "*"}. Keep in mind however that the
@@ -657,7 +660,7 @@ public class CorsConfiguration {
 		if (source.contains(ALL) || other.contains(ALL)) {
 			return ALL_LIST;
 		}
-		Set<String> combined = new LinkedHashSet<>(source.size() + other.size());
+		Set<String> combined = CollectionUtils.newLinkedHashSet(source.size() + other.size());
 		combined.addAll(source);
 		combined.addAll(other);
 		return new ArrayList<>(combined);
@@ -675,7 +678,7 @@ public class CorsConfiguration {
 		if (source.contains(ALL_PATTERN) || other.contains(ALL_PATTERN)) {
 			return ALL_PATTERN_LIST;
 		}
-		Set<OriginPattern> combined = new LinkedHashSet<>(source.size() + other.size());
+		Set<OriginPattern> combined = CollectionUtils.newLinkedHashSet(source.size() + other.size());
 		combined.addAll(source);
 		combined.addAll(other);
 		return new ArrayList<>(combined);
@@ -780,7 +783,7 @@ public class CorsConfiguration {
 
 
 	/**
-	 * Contains both the user-declared pattern (e.g. "https://*.domain.com") and
+	 * Contains both the user-declared pattern (for example, "https://*.domain.com") and
 	 * the regex {@link Pattern} derived from it.
 	 */
 	private static class OriginPattern {

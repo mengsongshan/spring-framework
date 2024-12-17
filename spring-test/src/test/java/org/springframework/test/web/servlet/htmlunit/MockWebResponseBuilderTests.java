@@ -20,10 +20,10 @@ import java.net.URL;
 import java.nio.charset.StandardCharsets;
 import java.util.List;
 
-import com.gargoylesoftware.htmlunit.WebRequest;
-import com.gargoylesoftware.htmlunit.WebResponse;
-import com.gargoylesoftware.htmlunit.util.NameValuePair;
 import jakarta.servlet.http.Cookie;
+import org.htmlunit.WebRequest;
+import org.htmlunit.WebResponse;
+import org.htmlunit.util.NameValuePair;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
@@ -31,7 +31,6 @@ import org.springframework.mock.web.MockHttpServletResponse;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatIllegalArgumentException;
-
 
 /**
  * Tests for {@link MockWebResponseBuilder}.
@@ -55,8 +54,6 @@ public class MockWebResponseBuilderTests {
 	}
 
 
-	// --- constructor
-
 	@Test
 	public void constructorWithNullWebRequest() {
 		assertThatIllegalArgumentException().isThrownBy(() ->
@@ -66,11 +63,9 @@ public class MockWebResponseBuilderTests {
 	@Test
 	public void constructorWithNullResponse() {
 		assertThatIllegalArgumentException().isThrownBy(() ->
-				new MockWebResponseBuilder(0L, new WebRequest(new URL("http://company.example:80/test/this/here")), null));
+				new MockWebResponseBuilder(0L,
+						new WebRequest(new URL("http://company.example:80/test/this/here")), null));
 	}
-
-
-	// --- build
 
 	@Test
 	public void buildContent() throws Exception {
@@ -124,8 +119,7 @@ public class MockWebResponseBuilderTests {
 				.endsWith("; Secure; HttpOnly");
 	}
 
-	// SPR-14169
-	@Test
+	@Test  // SPR-14169
 	public void buildResponseHeadersNullDomainDefaulted() throws Exception {
 		Cookie cookie = new Cookie("cookieA", "valueA");
 		this.response.addCookie(cookie);

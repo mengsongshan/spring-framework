@@ -1,5 +1,5 @@
 /*
- * Copyright 2002-2023 the original author or authors.
+ * Copyright 2002-2024 the original author or authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -20,8 +20,10 @@ import java.time.Clock;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.Date;
+import java.util.concurrent.Callable;
 import java.util.concurrent.Executor;
 import java.util.concurrent.Executors;
+import java.util.concurrent.Future;
 import java.util.concurrent.RejectedExecutionException;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.ScheduledFuture;
@@ -191,6 +193,7 @@ public class ConcurrentTaskScheduler extends ConcurrentTaskExecutor implements T
 	 * @see Clock#systemDefaultZone()
 	 */
 	public void setClock(Clock clock) {
+		Assert.notNull(clock, "Clock must not be null");
 		this.clock = clock;
 	}
 
@@ -199,6 +202,21 @@ public class ConcurrentTaskScheduler extends ConcurrentTaskExecutor implements T
 		return this.clock;
 	}
 
+
+	@Override
+	public void execute(Runnable task) {
+		super.execute(TaskUtils.decorateTaskWithErrorHandler(task, this.errorHandler, false));
+	}
+
+	@Override
+	public Future<?> submit(Runnable task) {
+		return super.submit(TaskUtils.decorateTaskWithErrorHandler(task, this.errorHandler, false));
+	}
+
+	@Override
+	public <T> Future<T> submit(Callable<T> task) {
+		return super.submit(new DelegatingErrorHandlingCallable<>(task, this.errorHandler));
+	}
 
 	@Override
 	@Nullable
@@ -211,7 +229,9 @@ public class ConcurrentTaskScheduler extends ConcurrentTaskExecutor implements T
 			else {
 				ErrorHandler errorHandler =
 						(this.errorHandler != null ? this.errorHandler : TaskUtils.getDefaultErrorHandler(true));
-				return new ReschedulingRunnable(task, trigger, this.clock, scheduleExecutorToUse, errorHandler).schedule();
+				return new ReschedulingRunnable(
+						decorateTaskIfNecessary(task), trigger, this.clock, scheduleExecutorToUse, errorHandler)
+						.schedule();
 			}
 		}
 		catch (RejectedExecutionException ex) {
@@ -283,6 +303,7 @@ public class ConcurrentTaskScheduler extends ConcurrentTaskExecutor implements T
 
 	private Runnable decorateTask(Runnable task, boolean isRepeatingTask) {
 		Runnable result = TaskUtils.decorateTaskWithErrorHandler(task, this.errorHandler, isRepeatingTask);
+		result = decorateTaskIfNecessary(result);
 		if (this.enterpriseConcurrentScheduler) {
 			result = ManagedTaskBuilder.buildManagedTask(result, task.toString());
 		}
@@ -333,16 +354,19 @@ public class ConcurrentTaskScheduler extends ConcurrentTaskExecutor implements T
 				}
 
 				@Override
+				@Nullable
 				public Instant lastScheduledExecution() {
 					return (this.le != null ? toInstant(this.le.getScheduledStart()) : null);
 				}
 
 				@Override
+				@Nullable
 				public Instant lastActualExecution() {
 					return (this.le != null ? toInstant(this.le.getRunStart()) : null);
 				}
 
 				@Override
+				@Nullable
 				public Instant lastCompletion() {
 					return (this.le != null ? toInstant(this.le.getRunEnd()) : null);
 				}

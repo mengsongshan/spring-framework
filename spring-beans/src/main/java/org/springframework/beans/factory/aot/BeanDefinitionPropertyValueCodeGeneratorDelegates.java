@@ -1,5 +1,5 @@
 /*
- * Copyright 2002-2023 the original author or authors.
+ * Copyright 2002-2024 the original author or authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -37,6 +37,7 @@ import org.springframework.beans.factory.support.ManagedMap;
 import org.springframework.beans.factory.support.ManagedSet;
 import org.springframework.javapoet.AnnotationSpec;
 import org.springframework.javapoet.CodeBlock;
+import org.springframework.lang.Nullable;
 
 /**
  * Code generator {@link Delegate} for common bean definition property values.
@@ -47,15 +48,15 @@ import org.springframework.javapoet.CodeBlock;
 abstract class BeanDefinitionPropertyValueCodeGeneratorDelegates {
 
 	/**
-	 * Return the {@link Delegate} implementations for common bean definition
-	 * property value types. These are:
+	 * A list of {@link Delegate} implementations for the following common bean
+	 * definition property value types.
 	 * <ul>
-	 * <li>{@link ManagedList},</li>
-	 * <li>{@link ManagedSet},</li>
-	 * <li>{@link ManagedMap},</li>
-	 * <li>{@link LinkedHashMap},</li>
-	 * <li>{@link BeanReference},</li>
-	 * <li>{@link TypedStringValue}.</li>
+	 * <li>{@link ManagedList}</li>
+	 * <li>{@link ManagedSet}</li>
+	 * <li>{@link ManagedMap}</li>
+	 * <li>{@link LinkedHashMap}</li>
+	 * <li>{@link BeanReference}</li>
+	 * <li>{@link TypedStringValue}</li>
 	 * </ul>
 	 * When combined with {@linkplain ValueCodeGeneratorDelegates#INSTANCES the
 	 * delegates for common value types}, this should be added first as they have
@@ -101,6 +102,7 @@ abstract class BeanDefinitionPropertyValueCodeGeneratorDelegates {
 		private static final CodeBlock EMPTY_RESULT = CodeBlock.of("$T.ofEntries()", ManagedMap.class);
 
 		@Override
+		@Nullable
 		public CodeBlock generateCode(ValueCodeGenerator valueCodeGenerator, Object value) {
 			if (value instanceof ManagedMap<?, ?> managedMap) {
 				return generateManagedMapCode(valueCodeGenerator, managedMap);
@@ -137,6 +139,7 @@ abstract class BeanDefinitionPropertyValueCodeGeneratorDelegates {
 	private static class LinkedHashMapDelegate extends MapDelegate {
 
 		@Override
+		@Nullable
 		protected CodeBlock generateMapCode(ValueCodeGenerator valueCodeGenerator, Map<?, ?> map) {
 			GeneratedMethods generatedMethods = valueCodeGenerator.getGeneratedMethods();
 			if (map instanceof LinkedHashMap<?, ?> && generatedMethods != null) {
@@ -172,6 +175,7 @@ abstract class BeanDefinitionPropertyValueCodeGeneratorDelegates {
 	private static class BeanReferenceDelegate implements Delegate {
 
 		@Override
+		@Nullable
 		public CodeBlock generateCode(ValueCodeGenerator valueCodeGenerator, Object value) {
 			if (value instanceof RuntimeBeanReference runtimeBeanReference &&
 					runtimeBeanReference.getBeanType() != null) {
@@ -193,6 +197,7 @@ abstract class BeanDefinitionPropertyValueCodeGeneratorDelegates {
 	private static class TypedStringValueDelegate implements Delegate {
 
 		@Override
+		@Nullable
 		public CodeBlock generateCode(ValueCodeGenerator valueCodeGenerator, Object value) {
 			if (value instanceof TypedStringValue typedStringValue) {
 				return generateTypeStringValueCode(valueCodeGenerator, typedStringValue);

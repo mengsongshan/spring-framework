@@ -172,7 +172,7 @@ public class WebClientResponseException extends WebClientException {
 
 	/**
 	 * Return the raw HTTP status code value.
-	 * @deprecated as of 6.0, in favor of {@link #getStatusCode()}
+	 * @deprecated in favor of {@link #getStatusCode()}, for removal in 7.0
 	 */
 	@Deprecated(since = "6.0")
 	public int getRawStatusCode() {
@@ -272,6 +272,20 @@ public class WebClientResponseException extends WebClientException {
 		this.bodyDecodeFunction = decoderFunction;
 	}
 
+	@Override
+	public String getMessage() {
+		String message = String.valueOf(super.getMessage());
+		if (shouldHintAtResponseFailure()) {
+			return message + ", but response failed with cause: " + getCause();
+		}
+		return message;
+	}
+
+	private boolean shouldHintAtResponseFailure() {
+		return this.statusCode.is1xxInformational() ||
+				this.statusCode.is2xxSuccessful() ||
+				this.statusCode.is3xxRedirection();
+	}
 
 	/**
 	 * Create {@code WebClientResponseException} or an HTTP status specific subclass.

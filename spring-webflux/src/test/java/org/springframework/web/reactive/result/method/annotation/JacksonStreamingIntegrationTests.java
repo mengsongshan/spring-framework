@@ -1,5 +1,5 @@
 /*
- * Copyright 2002-2023 the original author or authors.
+ * Copyright 2002-2024 the original author or authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -109,7 +109,7 @@ class JacksonStreamingIntegrationTests extends AbstractHttpHandlerIntegrationTes
 		@GetMapping(value = "/stream",
 				produces = { APPLICATION_NDJSON_VALUE, "application/stream+x-jackson-smile" })
 		Flux<Person> person() {
-			return testInterval(Duration.ofMillis(100), 50).map(l -> new Person("foo " + l));
+			return testInterval(Duration.ofMillis(1), 50).map(l -> new Person("foo " + l));
 		}
 
 	}

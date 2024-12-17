@@ -1,5 +1,5 @@
 /*
- * Copyright 2002-2017 the original author or authors.
+ * Copyright 2002-2024 the original author or authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -16,6 +16,10 @@
 
 package org.springframework.scheduling.config;
 
+import java.time.Instant;
+
+import org.springframework.lang.Nullable;
+import org.springframework.scheduling.SchedulingAwareRunnable;
 import org.springframework.util.Assert;
 
 /**
@@ -24,11 +28,14 @@ import org.springframework.util.Assert;
  *
  * @author Chris Beams
  * @author Juergen Hoeller
+ * @author Brian Clozel
  * @since 3.2
  */
 public class Task {
 
 	private final Runnable runnable;
+
+	private TaskExecutionOutcome lastExecutionOutcome;
 
 
 	/**
@@ -37,7 +44,8 @@ public class Task {
 	 */
 	public Task(Runnable runnable) {
 		Assert.notNull(runnable, "Runnable must not be null");
-		this.runnable = runnable;
+		this.runnable = new OutcomeTrackingRunnable(runnable);
+		this.lastExecutionOutcome = TaskExecutionOutcome.create();
 	}
 
 
@@ -48,10 +56,62 @@ public class Task {
 		return this.runnable;
 	}
 
+	/**
+	 * Return the outcome of the last task execution.
+	 * @since 6.2
+	 */
+	public TaskExecutionOutcome getLastExecutionOutcome() {
+		return this.lastExecutionOutcome;
+	}
 
 	@Override
 	public String toString() {
 		return this.runnable.toString();
+	}
+
+
+	private class OutcomeTrackingRunnable implements SchedulingAwareRunnable {
+
+		private final Runnable runnable;
+
+		public OutcomeTrackingRunnable(Runnable runnable) {
+			this.runnable = runnable;
+		}
+
+		@Override
+		public void run() {
+			try {
+				Task.this.lastExecutionOutcome = Task.this.lastExecutionOutcome.start(Instant.now());
+				this.runnable.run();
+				Task.this.lastExecutionOutcome = Task.this.lastExecutionOutcome.success();
+			}
+			catch (Throwable exc) {
+				Task.this.lastExecutionOutcome = Task.this.lastExecutionOutcome.failure(exc);
+				throw exc;
+			}
+		}
+
+		@Override
+		public boolean isLongLived() {
+			if (this.runnable instanceof SchedulingAwareRunnable sar) {
+				return sar.isLongLived();
+			}
+			return SchedulingAwareRunnable.super.isLongLived();
+		}
+
+		@Nullable
+		@Override
+		public String getQualifier() {
+			if (this.runnable instanceof SchedulingAwareRunnable sar) {
+				return sar.getQualifier();
+			}
+			return SchedulingAwareRunnable.super.getQualifier();
+		}
+
+		@Override
+		public String toString() {
+			return this.runnable.toString();
+		}
 	}
 
 }

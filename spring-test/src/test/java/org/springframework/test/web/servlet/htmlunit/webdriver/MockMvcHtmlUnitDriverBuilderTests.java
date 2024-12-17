@@ -16,8 +16,8 @@
 
 package org.springframework.test.web.servlet.htmlunit.webdriver;
 
-import com.gargoylesoftware.htmlunit.util.Cookie;
 import jakarta.servlet.http.HttpServletRequest;
+import org.htmlunit.util.Cookie;
 import org.junit.jupiter.api.Test;
 import org.openqa.selenium.htmlunit.HtmlUnitDriver;
 
@@ -49,6 +49,7 @@ class MockMvcHtmlUnitDriverBuilderTests {
 	private MockMvc mockMvc;
 
 	private HtmlUnitDriver driver;
+
 
 	MockMvcHtmlUnitDriverBuilderTests(WebApplicationContext wac) {
 		this.mockMvc = MockMvcBuilders.webAppContextSetup(wac).build();

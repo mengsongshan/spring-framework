@@ -60,6 +60,8 @@ import org.springframework.web.util.pattern.PathPatternParser;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatIllegalStateException;
+import static org.junit.jupiter.api.Named.named;
+import static org.junit.jupiter.params.provider.Arguments.arguments;
 import static org.mockito.Mockito.mock;
 
 /**
@@ -83,7 +85,10 @@ class RequestMappingHandlerMappingTests {
 		mapping2.setPatternParser(null);
 		mapping2.setApplicationContext(wac2);
 
-		return Stream.of(Arguments.of(mapping1, wac1), Arguments.of(mapping2, wac2));
+		return Stream.of(
+				arguments(named("PathPatternParser", mapping1), wac1),
+				arguments(named("AntPathMatcher", mapping2), wac2)
+			);
 	}
 
 	@Test
@@ -431,6 +436,26 @@ class RequestMappingHandlerMappingTests {
 				.containsOnly(MediaType.valueOf("text/plain;charset=UTF-8"));
 	}
 
+	@SuppressWarnings("DataFlowIssue")
+	@Test
+	void httpExchangeWithCustomHeaders() throws Exception {
+		RequestMappingHandlerMapping mapping = createMapping();
+
+		RequestMappingInfo mappingInfo = mapping.getMappingForMethod(
+				HttpExchangeController.class.getMethod("customHeadersExchange"),
+				HttpExchangeController.class);
+
+		assertThat(mappingInfo.getPathPatternsCondition().getPatterns())
+				.extracting(PathPattern::toString)
+				.containsOnly("/exchange/headers");
+
+		assertThat(mappingInfo.getMethodsCondition().getMethods()).containsOnly(RequestMethod.GET);
+		assertThat(mappingInfo.getParamsCondition().getExpressions()).isEmpty();
+
+		assertThat(mappingInfo.getHeadersCondition().getExpressions().stream().map(Object::toString))
+				.containsExactly("h1=hv1", "!h2");
+	}
+
 	private static RequestMappingHandlerMapping createMapping() {
 		RequestMappingHandlerMapping mapping = new RequestMappingHandlerMapping();
 		mapping.setApplicationContext(new StaticWebApplicationContext());
@@ -543,6 +568,12 @@ class RequestMappingHandlerMappingTests {
 
 		@PostExchange(url = "/custom", contentType = "application/json", accept = "text/plain;charset=UTF-8")
 		public void customValuesExchange(){}
+
+		@HttpExchange(method="GET", url = "/headers",
+				headers = {"h1=hv1", "!h2", "Accept=application/ignored"})
+		public String customHeadersExchange() {
+			return "info";
+		}
 	}
 
 

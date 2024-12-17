@@ -143,7 +143,7 @@ public class RequestMappingHandlerMapping extends RequestMappingInfoHandlerMappi
 
 	/**
 	 * {@inheritDoc}
-	 * Expects a handler to have a type-level @{@link Controller} annotation.
+	 * <p>Expects a handler to have a type-level @{@link Controller} annotation.
 	 */
 	@Override
 	protected boolean isHandler(Class<?> beanType) {
@@ -177,6 +177,7 @@ public class RequestMappingHandlerMapping extends RequestMappingInfoHandlerMappi
 					if (this.embeddedValueResolver != null) {
 						prefix = this.embeddedValueResolver.resolveStringValue(prefix);
 					}
+					Assert.state(prefix != null, "Prefix must not be null");
 					info = RequestMappingInfo.paths(prefix).options(this.config).build().combine(info);
 					break;
 				}
@@ -295,7 +296,8 @@ public class RequestMappingHandlerMapping extends RequestMappingInfoHandlerMappi
 				.paths(resolveEmbeddedValuesInPatterns(toStringArray(httpExchange.value())))
 				.methods(toMethodArray(httpExchange.method()))
 				.consumes(toStringArray(httpExchange.contentType()))
-				.produces(httpExchange.accept());
+				.produces(httpExchange.accept())
+				.headers(httpExchange.headers());
 
 		if (customCondition != null) {
 			builder.customCondition(customCondition);
@@ -356,6 +358,7 @@ public class RequestMappingHandlerMapping extends RequestMappingInfoHandlerMappi
 	}
 
 	@Override
+	@Nullable
 	protected CorsConfiguration initCorsConfiguration(Object handler, Method method, RequestMappingInfo mappingInfo) {
 		HandlerMethod handlerMethod = createHandlerMethod(handler, method);
 		Class<?> beanType = handlerMethod.getBeanType();

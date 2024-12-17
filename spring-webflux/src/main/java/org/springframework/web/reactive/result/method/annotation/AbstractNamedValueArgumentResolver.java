@@ -16,9 +16,9 @@
 
 package org.springframework.web.reactive.result.method.annotation;
 
+import java.lang.reflect.Constructor;
 import java.lang.reflect.Method;
 import java.util.Map;
-import java.util.Objects;
 import java.util.concurrent.ConcurrentHashMap;
 
 import kotlin.reflect.KFunction;
@@ -26,6 +26,7 @@ import kotlin.reflect.KParameter;
 import kotlin.reflect.jvm.ReflectJvmMapping;
 import reactor.core.publisher.Mono;
 
+import org.springframework.beans.BeanUtils;
 import org.springframework.beans.ConversionNotSupportedException;
 import org.springframework.beans.TypeMismatchException;
 import org.springframework.beans.factory.config.BeanExpressionContext;
@@ -118,7 +119,7 @@ public abstract class AbstractNamedValueArgumentResolver extends HandlerMethodAr
 					return Mono.justOrEmpty(arg);
 				})
 				.switchIfEmpty(getDefaultValue(
-						namedValueInfo, parameter, bindingContext, model, exchange));
+						namedValueInfo, resolvedName.toString(), parameter, bindingContext, model, exchange));
 	}
 
 	/**
@@ -197,8 +198,15 @@ public abstract class AbstractNamedValueArgumentResolver extends HandlerMethodAr
 			BindingContext bindingContext, ServerWebExchange exchange) {
 
 		WebDataBinder binder = bindingContext.createDataBinder(exchange, namedValueInfo.name);
+		Class<?> parameterType = parameter.getParameterType();
+		if (KotlinDetector.isKotlinPresent() && KotlinDetector.isInlineClass(parameterType)) {
+			Constructor<?> ctor = BeanUtils.findPrimaryConstructor(parameterType);
+			if (ctor != null) {
+				parameterType = ctor.getParameterTypes()[0];
+			}
+		}
 		try {
-			value = binder.convertIfNecessary(value, parameter.getParameterType(), parameter);
+			value = binder.convertIfNecessary(value, parameterType, parameter);
 		}
 		catch (ConversionNotSupportedException ex) {
 			throw new ServerErrorException("Conversion not supported.", parameter, ex);
@@ -213,22 +221,22 @@ public abstract class AbstractNamedValueArgumentResolver extends HandlerMethodAr
 	/**
 	 * Resolve the default value, if any.
 	 */
-	private Mono<Object> getDefaultValue(NamedValueInfo namedValueInfo, MethodParameter parameter,
+	private Mono<Object> getDefaultValue(NamedValueInfo namedValueInfo, String resolvedName, MethodParameter parameter,
 			BindingContext bindingContext, Model model, ServerWebExchange exchange) {
 
 		return Mono.fromSupplier(() -> {
 			Object value = null;
-			boolean hasDefaultValue = KotlinDetector.isKotlinReflectPresent()
-					&& KotlinDetector.isKotlinType(parameter.getDeclaringClass())
-					&& KotlinDelegate.hasDefaultValue(parameter);
+			boolean hasDefaultValue = KotlinDetector.isKotlinReflectPresent() &&
+					KotlinDetector.isKotlinType(parameter.getDeclaringClass()) &&
+					KotlinDelegate.hasDefaultValue(parameter);
 			if (namedValueInfo.defaultValue != null) {
 				value = resolveEmbeddedValuesAndExpressions(namedValueInfo.defaultValue);
 			}
 			else if (namedValueInfo.required && !parameter.isOptional()) {
-				handleMissingValue(namedValueInfo.name, parameter, exchange);
+				handleMissingValue(resolvedName, parameter, exchange);
 			}
 			if (!hasDefaultValue) {
-				value = handleNullValue(namedValueInfo.name, value, parameter.getNestedParameterType());
+				value = handleNullValue(resolvedName, value, parameter.getNestedParameterType());
 			}
 			if (value != null || !hasDefaultValue) {
 				value = applyConversion(value, namedValueInfo, parameter, bindingContext, exchange);
@@ -319,6 +327,7 @@ public abstract class AbstractNamedValueArgumentResolver extends HandlerMethodAr
 		}
 	}
 
+
 	/**
 	 * Inner class to avoid a hard dependency on Kotlin at runtime.
 	 */
@@ -329,7 +338,10 @@ public abstract class AbstractNamedValueArgumentResolver extends HandlerMethodAr
 		 * or an optional parameter (with a default value in the Kotlin declaration).
 		 */
 		public static boolean hasDefaultValue(MethodParameter parameter) {
-			Method method = Objects.requireNonNull(parameter.getMethod());
+			Method method = parameter.getMethod();
+			if (method == null) {
+				return false;
+			}
 			KFunction<?> function = ReflectJvmMapping.getKotlinFunction(method);
 			if (function != null) {
 				int index = 0;

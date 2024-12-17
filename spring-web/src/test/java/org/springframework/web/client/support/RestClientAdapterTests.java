@@ -1,5 +1,5 @@
 /*
- * Copyright 2002-2023 the original author or authors.
+ * Copyright 2002-2024 the original author or authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -27,7 +27,6 @@ import java.util.function.BiFunction;
 import java.util.stream.Stream;
 
 import io.micrometer.observation.tck.TestObservationRegistry;
-import io.micrometer.observation.tck.TestObservationRegistryAssert;
 import okhttp3.mockwebserver.MockResponse;
 import okhttp3.mockwebserver.MockWebServer;
 import okhttp3.mockwebserver.RecordedRequest;
@@ -131,9 +130,8 @@ class RestClientAdapterTests {
 		assertThat(response).isEqualTo("Hello Spring!");
 		assertThat(request.getMethod()).isEqualTo("GET");
 		assertThat(request.getPath()).isEqualTo("/greeting");
-		TestObservationRegistryAssert.assertThat(observationRegistry)
-				.hasObservationWithNameEqualTo("http.client.requests")
-				.that().hasLowCardinalityKeyValue("uri", "/greeting");
+		assertThat(observationRegistry).hasObservationWithNameEqualTo("http.client.requests").that()
+				.hasLowCardinalityKeyValue("uri", "/greeting");
 	}
 
 	@ParameterizedAdapterTest
@@ -147,9 +145,8 @@ class RestClientAdapterTests {
 		assertThat(response.getBody()).isEqualTo("Hello Spring!");
 		assertThat(request.getMethod()).isEqualTo("GET");
 		assertThat(request.getPath()).isEqualTo("/greeting/456");
-		TestObservationRegistryAssert.assertThat(observationRegistry)
-				.hasObservationWithNameEqualTo("http.client.requests")
-				.that().hasLowCardinalityKeyValue("uri", "/greeting/{id}");
+		assertThat(observationRegistry).hasObservationWithNameEqualTo("http.client.requests").that()
+				.hasLowCardinalityKeyValue("uri", "/greeting/{id}");
 	}
 
 	@ParameterizedAdapterTest
@@ -163,9 +160,8 @@ class RestClientAdapterTests {
 		assertThat(response.orElse("empty")).isEqualTo("Hello Spring!");
 		assertThat(request.getMethod()).isEqualTo("GET");
 		assertThat(request.getRequestUrl().uri()).isEqualTo(dynamicUri);
-		TestObservationRegistryAssert.assertThat(observationRegistry)
-				.hasObservationWithNameEqualTo("http.client.requests")
-				.that().hasLowCardinalityKeyValue("uri", "none");
+		assertThat(observationRegistry).hasObservationWithNameEqualTo("http.client.requests").that()
+				.hasLowCardinalityKeyValue("uri", "none");
 	}
 
 	@ParameterizedAdapterTest
@@ -188,7 +184,7 @@ class RestClientAdapterTests {
 		service.postForm(map);
 
 		RecordedRequest request = server.takeRequest();
-		assertThat(request.getHeaders().get("Content-Type")).isEqualTo("application/x-www-form-urlencoded;charset=UTF-8");
+		assertThat(request.getHeaders().get("Content-Type")).isEqualTo("application/x-www-form-urlencoded");
 		assertThat(request.getBody().readUtf8()).isEqualTo("param1=value+1&param2=value+2");
 	}
 

@@ -1,5 +1,5 @@
 /*
- * Copyright 2002-2023 the original author or authors.
+ * Copyright 2002-2024 the original author or authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -40,6 +40,7 @@ import org.springframework.aot.hint.predicate.RuntimeHintsPredicates;
 import org.springframework.aot.test.generate.TestGenerationContext;
 import org.springframework.beans.BeansException;
 import org.springframework.beans.factory.annotation.AutowiredAnnotationBeanPostProcessor;
+import org.springframework.beans.factory.aot.AotProcessingException;
 import org.springframework.beans.factory.aot.BeanFactoryInitializationAotContribution;
 import org.springframework.beans.factory.aot.BeanFactoryInitializationAotProcessor;
 import org.springframework.beans.factory.aot.BeanRegistrationAotContribution;
@@ -65,8 +66,10 @@ import org.springframework.context.annotation.CommonAnnotationBeanPostProcessor;
 import org.springframework.context.annotation.ContextAnnotationAutowireCandidateResolver;
 import org.springframework.context.support.GenericApplicationContext;
 import org.springframework.context.support.GenericXmlApplicationContext;
+import org.springframework.context.testfixture.context.annotation.AutowiredCglibConfiguration;
 import org.springframework.context.testfixture.context.annotation.AutowiredComponent;
 import org.springframework.context.testfixture.context.annotation.AutowiredGenericTemplate;
+import org.springframework.context.testfixture.context.annotation.AutowiredMixedCglibConfiguration;
 import org.springframework.context.testfixture.context.annotation.CglibConfiguration;
 import org.springframework.context.testfixture.context.annotation.ConfigurableCglibConfiguration;
 import org.springframework.context.testfixture.context.annotation.GenericTemplateConfiguration;
@@ -81,6 +84,7 @@ import org.springframework.context.testfixture.context.annotation.LazyResourceMe
 import org.springframework.context.testfixture.context.annotation.PropertySourceConfiguration;
 import org.springframework.context.testfixture.context.annotation.QualifierConfiguration;
 import org.springframework.context.testfixture.context.annotation.ResourceComponent;
+import org.springframework.context.testfixture.context.annotation.ValueCglibConfiguration;
 import org.springframework.context.testfixture.context.generator.SimpleComponent;
 import org.springframework.core.env.ConfigurableEnvironment;
 import org.springframework.core.env.Environment;
@@ -94,6 +98,7 @@ import org.springframework.mock.env.MockEnvironment;
 import org.springframework.util.ReflectionUtils;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatExceptionOfType;
 
 /**
  * Tests for {@link ApplicationContextAotGenerator}.
@@ -434,12 +439,14 @@ class ApplicationContextAotGeneratorTests {
 	@CompileWithForkedClassLoader
 	class ConfigurationClassCglibProxy {
 
+		private static final String CGLIB_CONFIGURATION_CLASS_SUFFIX = "$$SpringCGLIB$$0";
+
 		@Test
 		void processAheadOfTimeWhenHasCglibProxyWriteProxyAndGenerateReflectionHints() throws IOException {
 			GenericApplicationContext applicationContext = new AnnotationConfigApplicationContext();
 			applicationContext.registerBean(CglibConfiguration.class);
 			TestGenerationContext context = processAheadOfTime(applicationContext);
-			isRegisteredCglibClass(context, CglibConfiguration.class.getName() + "$$SpringCGLIB$$0");
+			isRegisteredCglibClass(context, CglibConfiguration.class.getName() + CGLIB_CONFIGURATION_CLASS_SUFFIX);
 			isRegisteredCglibClass(context, CglibConfiguration.class.getName() + "$$SpringCGLIB$$FastClass$$0");
 			isRegisteredCglibClass(context, CglibConfiguration.class.getName() + "$$SpringCGLIB$$FastClass$$1");
 		}
@@ -452,6 +459,43 @@ class ApplicationContextAotGeneratorTests {
 		}
 
 		@Test
+		void processAheadOfTimeExposeUserClassForCglibProxy() {
+			GenericApplicationContext applicationContext = new AnnotationConfigApplicationContext();
+			applicationContext.registerBean("config", ValueCglibConfiguration.class);
+
+			testCompiledResult(applicationContext, (initializer, compiled) -> {
+				GenericApplicationContext freshApplicationContext = toFreshApplicationContext(initializer);
+				assertThat(freshApplicationContext).satisfies(hasBeanDefinitionOfBeanClass("config", ValueCglibConfiguration.class));
+				assertThat(compiled.getSourceFile(".*ValueCglibConfiguration__BeanDefinitions"))
+						.contains("new RootBeanDefinition(ValueCglibConfiguration.class)")
+						.contains("new %s(".formatted(toCglibClassSimpleName(ValueCglibConfiguration.class)));
+			});
+		}
+
+		@Test
+		void processAheadOfTimeUsesCglibClassForFactoryMethod() {
+			GenericApplicationContext applicationContext = new AnnotationConfigApplicationContext();
+			applicationContext.registerBean("config", CglibConfiguration.class);
+
+			testCompiledResult(applicationContext, (initializer, compiled) -> {
+				GenericApplicationContext freshApplicationContext = toFreshApplicationContext(initializer);
+				assertThat(freshApplicationContext).satisfies(hasBeanDefinitionOfBeanClass("config", CglibConfiguration.class));
+				assertThat(compiled.getSourceFile(".*CglibConfiguration__BeanDefinitions"))
+						.contains("new RootBeanDefinition(CglibConfiguration.class)")
+						.contains(">forFactoryMethod(%s.class,".formatted(toCglibClassSimpleName(CglibConfiguration.class)))
+						.doesNotContain(">forFactoryMethod(%s.class,".formatted(CglibConfiguration.class));
+			});
+		}
+
+		private Consumer<GenericApplicationContext> hasBeanDefinitionOfBeanClass(String name, Class<?> beanClass) {
+			return context -> {
+				assertThat(context.containsBean(name)).isTrue();
+				assertThat(context.getBeanDefinition(name)).isInstanceOfSatisfying(RootBeanDefinition.class,
+						rbd -> assertThat(rbd.getBeanClass()).isEqualTo(beanClass));
+			};
+		}
+
+		@Test
 		void processAheadOfTimeWhenHasCglibProxyUseProxy() {
 			GenericApplicationContext applicationContext = new AnnotationConfigApplicationContext();
 			applicationContext.registerBean(CglibConfiguration.class);
@@ -459,6 +503,47 @@ class ApplicationContextAotGeneratorTests {
 				GenericApplicationContext freshApplicationContext = toFreshApplicationContext(initializer);
 				assertThat(freshApplicationContext.getBean("prefix", String.class)).isEqualTo("Hello0");
 				assertThat(freshApplicationContext.getBean("text", String.class)).isEqualTo("Hello0 World");
+			});
+		}
+
+		@Test
+		void processAheadOfTimeWhenHasCglibProxyAndAutowiring() {
+			GenericApplicationContext applicationContext = new AnnotationConfigApplicationContext();
+			applicationContext.registerBean(AutowiredCglibConfiguration.class);
+			testCompiledResult(applicationContext, (initializer, compiled) -> {
+				GenericApplicationContext freshApplicationContext = toFreshApplicationContext(context -> {
+					context.setEnvironment(new MockEnvironment().withProperty("hello", "Hi"));
+					initializer.initialize(context);
+				});
+				assertThat(freshApplicationContext.getBean("text", String.class)).isEqualTo("Hi World");
+			});
+		}
+
+		@Test
+		void processAheadOfTimeWhenHasCglibProxyAndMixedAutowiring() {
+			GenericApplicationContext applicationContext = new AnnotationConfigApplicationContext();
+			applicationContext.registerBean(AutowiredMixedCglibConfiguration.class);
+			testCompiledResult(applicationContext, (initializer, compiled) -> {
+				GenericApplicationContext freshApplicationContext = toFreshApplicationContext(context -> {
+					context.setEnvironment(new MockEnvironment().withProperty("hello", "Hi")
+							.withProperty("world", "AOT World"));
+					initializer.initialize(context);
+				});
+				assertThat(freshApplicationContext.getBean("text", String.class)).isEqualTo("Hi AOT World");
+			});
+		}
+
+		@Test
+		void processAheadOfTimeWhenHasCglibProxyWithAnnotationsOnTheUserClasConstructor() {
+			GenericApplicationContext applicationContext = new AnnotationConfigApplicationContext();
+			applicationContext.registerBean("config", ValueCglibConfiguration.class);
+			testCompiledResult(applicationContext, (initializer, compiled) -> {
+				GenericApplicationContext freshApplicationContext = toFreshApplicationContext(context -> {
+					context.setEnvironment(new MockEnvironment().withProperty("name", "AOT World"));
+					initializer.initialize(context);
+				});
+				assertThat(freshApplicationContext.getBean(ValueCglibConfiguration.class)
+						.getName()).isEqualTo("AOT World");
 			});
 		}
 
@@ -483,6 +568,10 @@ class ApplicationContextAotGeneratorTests {
 			Constructor<?> userConstructor = ConfigurableCglibConfiguration.class.getDeclaredConstructors()[0];
 			assertThat(RuntimeHintsPredicates.reflection().onConstructor(userConstructor).introspect())
 					.accepts(generationContext.getRuntimeHints());
+		}
+
+		private String toCglibClassSimpleName(Class<?> configClass) {
+			return configClass.getSimpleName() + CGLIB_CONFIGURATION_CLASS_SUFFIX;
 		}
 
 	}
@@ -587,6 +676,22 @@ class ApplicationContextAotGeneratorTests {
 
 	}
 
+	@Nested
+	class ExceptionHanding {
+
+		@Test
+		void failureProcessingBeanFactoryAotContribution() {
+			GenericApplicationContext applicationContext = new GenericApplicationContext();
+			applicationContext.registerBeanDefinition("test",
+					new RootBeanDefinition(FailingBeanFactoryInitializationAotContribution.class));
+			assertThatExceptionOfType(AotProcessingException.class)
+					.isThrownBy(() -> processAheadOfTime(applicationContext))
+					.withMessageStartingWith("Error executing '")
+					.withMessageContaining(FailingBeanFactoryInitializationAotContribution.class.getName())
+					.withMessageContaining("Test exception");
+		}
+	}
+
 	private static void registerBeanPostProcessor(GenericApplicationContext applicationContext,
 			String beanName, Class<?> beanPostProcessorClass) {
 
@@ -626,18 +731,21 @@ class ApplicationContextAotGeneratorTests {
 
 	private static void testCompiledResult(GenericApplicationContext applicationContext,
 			BiConsumer<ApplicationContextInitializer<GenericApplicationContext>, Compiled> result) {
+
 		testCompiledResult(processAheadOfTime(applicationContext), result);
 	}
 
-	@SuppressWarnings({ "rawtypes", "unchecked" })
+	@SuppressWarnings("unchecked")
 	private static void testCompiledResult(TestGenerationContext generationContext,
 			BiConsumer<ApplicationContextInitializer<GenericApplicationContext>, Compiled> result) {
+
 		TestCompiler.forSystem().with(generationContext).compile(compiled ->
 				result.accept(compiled.getInstance(ApplicationContextInitializer.class), compiled));
 	}
 
 	private static GenericApplicationContext toFreshApplicationContext(
 			ApplicationContextInitializer<GenericApplicationContext> initializer) {
+
 		GenericApplicationContext freshApplicationContext = createFreshApplicationContext(initializer);
 		freshApplicationContext.refresh();
 		return freshApplicationContext;
@@ -645,6 +753,7 @@ class ApplicationContextAotGeneratorTests {
 
 	private static GenericApplicationContext createFreshApplicationContext(
 			ApplicationContextInitializer<GenericApplicationContext> initializer) {
+
 		GenericApplicationContext freshApplicationContext = new GenericApplicationContext();
 		initializer.initialize(freshApplicationContext);
 		return freshApplicationContext;
@@ -674,6 +783,14 @@ class ApplicationContextAotGeneratorTests {
 			return null;
 		}
 
+	}
+
+	static class FailingBeanFactoryInitializationAotContribution implements BeanFactoryInitializationAotProcessor {
+
+		@Override
+		public BeanFactoryInitializationAotContribution processAheadOfTime(ConfigurableListableBeanFactory beanFactory) {
+			throw new IllegalStateException("Test exception");
+		}
 	}
 
 }

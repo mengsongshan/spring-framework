@@ -1,5 +1,5 @@
 /*
- * Copyright 2002-2023 the original author or authors.
+ * Copyright 2002-2024 the original author or authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -83,8 +83,15 @@ public class DefaultCorsProcessor implements CorsProcessor {
 			response.addHeader(HttpHeaders.VARY, HttpHeaders.ACCESS_CONTROL_REQUEST_HEADERS);
 		}
 
-		if (!CorsUtils.isCorsRequest(request)) {
-			return true;
+		try {
+			if (!CorsUtils.isCorsRequest(request)) {
+				return true;
+			}
+		}
+		catch (IllegalArgumentException ex) {
+			logger.debug("Reject: origin is malformed");
+			rejectRequest(new ServletServerHttpResponse(response));
+			return false;
 		}
 
 		if (response.getHeader(HttpHeaders.ACCESS_CONTROL_ALLOW_ORIGIN) != null) {
@@ -155,7 +162,7 @@ public class DefaultCorsProcessor implements CorsProcessor {
 			responseHeaders.setAccessControlAllowMethods(allowMethods);
 		}
 
-		if (preFlightRequest && !allowHeaders.isEmpty()) {
+		if (preFlightRequest && !CollectionUtils.isEmpty(allowHeaders)) {
 			responseHeaders.setAccessControlAllowHeaders(allowHeaders);
 		}
 

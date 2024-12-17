@@ -1,5 +1,5 @@
 /*
- * Copyright 2002-2023 the original author or authors.
+ * Copyright 2002-2024 the original author or authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -85,6 +85,7 @@ public abstract class SharedEntityManagerCreator {
 			"execute",  // jakarta.persistence.StoredProcedureQuery.execute()
 			"executeUpdate", // jakarta.persistence.Query.executeUpdate()
 			"getSingleResult",  // jakarta.persistence.Query.getSingleResult()
+			"getSingleResultOrNull",  // jakarta.persistence.Query.getSingleResultOrNull()
 			"getResultStream",  // jakarta.persistence.Query.getResultStream()
 			"getResultList",  // jakarta.persistence.Query.getResultList()
 			"list",  // org.hibernate.query.Query.list()
@@ -185,7 +186,7 @@ public abstract class SharedEntityManagerCreator {
 	@SuppressWarnings("serial")
 	private static class SharedEntityManagerInvocationHandler implements InvocationHandler, Serializable {
 
-		private final Log logger = LogFactory.getLog(getClass());
+		private static final Log logger = LogFactory.getLog(SharedEntityManagerInvocationHandler.class);
 
 		private final EntityManagerFactory targetFactory;
 
@@ -393,6 +394,9 @@ public abstract class SharedEntityManagerCreator {
 					}
 					else if (targetClass.isInstance(proxy)) {
 						return proxy;
+					}
+					else {
+						return this.target.unwrap(targetClass);
 					}
 				}
 				case "getOutputParameterValue" -> {

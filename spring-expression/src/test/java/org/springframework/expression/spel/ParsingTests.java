@@ -18,12 +18,12 @@ package org.springframework.expression.spel;
 
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.CsvSource;
 
 import org.springframework.expression.spel.standard.SpelExpression;
-import org.springframework.expression.spel.standard.SpelExpressionParser;
 
 import static org.assertj.core.api.Assertions.assertThat;
-import static org.assertj.core.api.Assertions.assertThatIllegalStateException;
 
 /**
  * Parse some expressions and check we get the AST we expect.
@@ -34,19 +34,31 @@ import static org.assertj.core.api.Assertions.assertThatIllegalStateException;
  * @author Andy Clement
  * @author Sam Brannen
  */
-class ParsingTests {
-
-	private final SpelExpressionParser parser = new SpelExpressionParser();
-
+class ParsingTests extends AbstractExpressionTests {
 
 	@Nested
 	class Miscellaneous {
 
 		@Test
 		void compoundExpressions() {
+			parseCheck("#var1.methodOne().methodTwo(42)");
+			parseCheck("#func1().methodOne().methodTwo(42)");
+			parseCheck("#func2('enigma').methodOne().methodTwo(42)");
 			parseCheck("property1.property2.methodOne()");
-			parseCheck("property1[0].property2['key'].methodOne()");
+			parseCheck("property1.methodOne('enigma').methodTwo(42)");
+			parseCheck("property1.methodOne().property2.methodTwo()");
+			parseCheck("property1[0].property2['key'].methodTwo()");
+			parseCheck("property1[0][1].property2['key'][42].methodTwo()");
+
+			// null-safe variants
+			parseCheck("#var1?.methodOne()?.methodTwo(42)");
+			parseCheck("#func1()?.methodOne()?.methodTwo(42)");
+			parseCheck("#func2('enigma')?.methodOne()?.methodTwo(42)");
+			parseCheck("property1?.property2?.methodOne()");
+			parseCheck("property1?.methodOne('enigma')?.methodTwo(42)");
 			parseCheck("property1?.methodOne()?.property2?.methodTwo()");
+			parseCheck("property1?.[0]?.property2?.['key']?.methodTwo()");
+			parseCheck("property1?.[0]?.[1]?.property2?.['key']?.[42]?.methodTwo()");
 		}
 
 		@Test
@@ -89,12 +101,14 @@ class ParsingTests {
 			parseCheck("have乐趣()");
 		}
 
-		@Test
-		void unsupportedCharactersInIdentifiers() {
-			// Invalid syntax
-			assertThatIllegalStateException()
-					.isThrownBy(() -> parser.parseRaw("apple~banana"))
-					.withMessage("Unsupported character '~' (126) encountered at position 6 in expression.");
+		@ParameterizedTest(name = "expression = ''{0}''")
+		@CsvSource(textBlock = """
+			apple~banana, ~, 6
+			map[‘c],      ‘, 5
+			A § B,        §, 3
+			""")
+		void unsupportedCharacter(String expression, char ch, int position) {
+			parseAndCheckError(expression, SpelMessage.UNSUPPORTED_CHARACTER, position, ch, (int) ch);
 		}
 
 		@Test
@@ -113,26 +127,53 @@ class ParsingTests {
 		}
 
 		@Test
+		void indexing() {
+			parseCheck("#var[2]");
+			parseCheck("person['name']");
+			parseCheck("person[name]");
+			parseCheck("array[2]");
+			parseCheck("array[2][3]");
+			parseCheck("func()[2]");
+			parseCheck("#func()[2]");
+			parseCheck("'abc'[2]");
+			parseCheck("\"abc\"[2]", "'abc'[2]");
+			parseCheck("{1,2,3}[2]");
+			parseCheck("{'k':'v'}['k']");
+			parseCheck("{'k':'v'}[k]");
+			parseCheck("{'k1':'v1','k2':'v2'}['k2']");
+			parseCheck("{'k1':'v1','k2':'v2'}[k2]");
+		}
+
+		@Test
 		void projection() {
-			parseCheck("{1,2,3,4,5,6,7,8,9,10}.![#isEven()]");
+			parseCheck("{1,2,3}.![#isEven()]");
+
+			// null-safe variant
+			parseCheck("{1,2,3}?.![#isEven()]");
 		}
 
 		@Test
 		void selection() {
-			parseCheck("{1,2,3,4,5,6,7,8,9,10}.?[#isEven(#this) == 'y']",
-					"{1,2,3,4,5,6,7,8,9,10}.?[(#isEven(#this) == 'y')]");
+			parseCheck("{1,2,3}.?[#isEven(#this)]");
+
+			// null-safe variant
+			parseCheck("{1,2,3}?.?[#isEven(#this)]");
 		}
 
 		@Test
-		void selectionFirst() {
-			parseCheck("{1,2,3,4,5,6,7,8,9,10}.^[#isEven(#this) == 'y']",
-					"{1,2,3,4,5,6,7,8,9,10}.^[(#isEven(#this) == 'y')]");
+		void selectFirst() {
+			parseCheck("{1,2,3}.^[#isEven(#this)]");
+
+			// null-safe variant
+			parseCheck("{1,2,3}?.^[#isEven(#this)]");
 		}
 
 		@Test
-		void selectionLast() {
-			parseCheck("{1,2,3,4,5,6,7,8,9,10}.$[#isEven(#this) == 'y']",
-					"{1,2,3,4,5,6,7,8,9,10}.$[(#isEven(#this) == 'y')]");
+		void selectLast() {
+			parseCheck("{1,2,3}.$[#isEven(#this)]");
+
+			// null-safe variant
+			parseCheck("{1,2,3}?.$[#isEven(#this)]");
 		}
 	}
 

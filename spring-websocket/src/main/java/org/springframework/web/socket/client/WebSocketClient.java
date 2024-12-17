@@ -1,5 +1,5 @@
 /*
- * Copyright 2002-2022 the original author or authors.
+ * Copyright 2002-2024 the original author or authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -42,41 +42,10 @@ public interface WebSocketClient {
 	 * @param uriTemplate the url template
 	 * @param uriVariables the variables to expand the template
 	 * @return a future that completes when the session is available
-	 * @deprecated as of 6.0, in favor of {@link #execute(WebSocketHandler, String, Object...)}
-	 */
-	@Deprecated(since = "6.0")
-	default org.springframework.util.concurrent.ListenableFuture<WebSocketSession> doHandshake(
-			WebSocketHandler webSocketHandler, String uriTemplate, Object... uriVariables) {
-		return new org.springframework.util.concurrent.CompletableToListenableFutureAdapter<>(
-				execute(webSocketHandler, uriTemplate, uriVariables));
-	}
-
-	/**
-	 * Execute a handshake request to the given url and handle the resulting
-	 * WebSocket session with the given handler.
-	 * @param webSocketHandler the session handler
-	 * @param uriTemplate the url template
-	 * @param uriVariables the variables to expand the template
-	 * @return a future that completes when the session is available
 	 * @since 6.0
 	 */
 	CompletableFuture<WebSocketSession> execute(WebSocketHandler webSocketHandler,
 				String uriTemplate, Object... uriVariables);
-
-	/**
-	 * Execute a handshake request to the given url and handle the resulting
-	 * WebSocket session with the given handler.
-	 * @param webSocketHandler the session handler
-	 * @param uri the url
-	 * @return a future that completes when the session is available
-	 * @deprecated as of 6.0, in favor of {@link #execute(WebSocketHandler, WebSocketHttpHeaders, URI)}
-	 */
-	@Deprecated(since = "6.0")
-	default org.springframework.util.concurrent.ListenableFuture<WebSocketSession> doHandshake(
-			WebSocketHandler webSocketHandler, @Nullable WebSocketHttpHeaders headers, URI uri) {
-		return new org.springframework.util.concurrent.CompletableToListenableFutureAdapter<>(
-				execute(webSocketHandler, headers, uri));
-	}
 
 	/**
 	 * Execute a handshake request to the given url and handle the resulting

@@ -18,8 +18,8 @@ package org.springframework.test.web.servlet.htmlunit.webdriver;
 
 import java.io.IOException;
 
-import com.gargoylesoftware.htmlunit.WebConnection;
-import com.gargoylesoftware.htmlunit.WebRequest;
+import org.htmlunit.WebConnection;
+import org.htmlunit.WebRequest;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.mockito.Mock;
@@ -47,6 +47,7 @@ class WebConnectionHtmlUnitDriverTests {
 
 	@Mock
 	private WebConnection connection;
+
 
 	@BeforeEach
 	void setup() throws Exception {

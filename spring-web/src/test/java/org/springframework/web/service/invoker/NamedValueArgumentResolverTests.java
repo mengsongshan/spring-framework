@@ -48,6 +48,7 @@ import static org.assertj.core.api.Assertions.assertThatIllegalArgumentException
  * {@link TestValue @TestValue} annotation and {@link TestNamedValueArgumentResolver}.
  *
  * @author Rossen Stoyanchev
+ * @author Olga Maciaszek-Sharma
  */
 class NamedValueArgumentResolverTests {
 
@@ -71,6 +72,12 @@ class NamedValueArgumentResolverTests {
 	void dateTestValue() {
 		this.service.executeDate(LocalDate.of(2022, 9, 16));
 		assertTestValue("value", "2022-09-16");
+	}
+
+	@Test // gh-33794
+	void dateNullValue() {
+		this.service.executeDate(null);
+		assertTestValue("value");
 	}
 
 	@Test
@@ -134,7 +141,7 @@ class NamedValueArgumentResolverTests {
 	}
 
 	@Test
-	void optionalEmpthyWithDefaultValue() {
+	void optionalEmptyWithDefaultValue() {
 		this.service.executeOptionalWithDefaultValue(Optional.empty());
 		assertTestValue("value", "default");
 	}
@@ -157,6 +164,12 @@ class NamedValueArgumentResolverTests {
 		assertTestValue("value", "test");
 	}
 
+	@Test
+	void nullTestValueWithNullable() {
+		this.service.executeNullable(null);
+		assertTestValue("value");
+	}
+
 	private void assertTestValue(String key, String... values) {
 		List<String> actualValues = this.argumentResolver.getTestValues().get(key);
 		if (ObjectUtils.isEmpty(values)) {
@@ -175,7 +188,7 @@ class NamedValueArgumentResolverTests {
 		void executeString(@TestValue String value);
 
 		@GetExchange
-		void executeDate(@TestValue @DateTimeFormat(pattern = "yyyy-MM-dd") LocalDate value);
+		void executeDate(@Nullable @TestValue(required = false) @DateTimeFormat(pattern = "yyyy-MM-dd") LocalDate value);
 
 		@GetExchange
 		void execute(@TestValue Object value);
@@ -206,6 +219,9 @@ class NamedValueArgumentResolverTests {
 
 		@GetExchange
 		void executeMapWithOptionalValue(@TestValue Map<String, Optional<String>> values);
+
+		@GetExchange
+		void executeNullable(@Nullable @TestValue String value);
 
 	}
 

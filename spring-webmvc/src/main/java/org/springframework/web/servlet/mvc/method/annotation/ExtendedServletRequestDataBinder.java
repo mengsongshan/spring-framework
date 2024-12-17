@@ -1,5 +1,5 @@
 /*
- * Copyright 2002-2023 the original author or authors.
+ * Copyright 2002-2024 the original author or authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -16,13 +16,19 @@
 
 package org.springframework.web.servlet.mvc.method.annotation;
 
+import java.util.ArrayList;
+import java.util.Enumeration;
+import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.function.Predicate;
 
 import jakarta.servlet.ServletRequest;
+import jakarta.servlet.http.HttpServletRequest;
 
 import org.springframework.beans.MutablePropertyValues;
 import org.springframework.lang.Nullable;
+import org.springframework.util.StringUtils;
 import org.springframework.web.bind.ServletRequestDataBinder;
 import org.springframework.web.bind.WebDataBinder;
 import org.springframework.web.servlet.HandlerMapping;
@@ -47,6 +53,12 @@ import org.springframework.web.servlet.HandlerMapping;
  */
 public class ExtendedServletRequestDataBinder extends ServletRequestDataBinder {
 
+	private static final Set<String> FILTERED_HEADER_NAMES = Set.of("Priority");
+
+
+	private Predicate<String> headerPredicate = name -> !FILTERED_HEADER_NAMES.contains(name);
+
+
 	/**
 	 * Create a new instance, with default object name.
 	 * @param target the target object to bind onto (or {@code null}
@@ -69,6 +81,29 @@ public class ExtendedServletRequestDataBinder extends ServletRequestDataBinder {
 	}
 
 
+	/**
+	 * Add a Predicate that filters the header names to use for data binding.
+	 * Multiple predicates are combined with {@code AND}.
+	 * @param headerPredicate the predicate to add
+	 * @since 6.2.1
+	 */
+	public void addHeaderPredicate(Predicate<String> headerPredicate) {
+		this.headerPredicate = this.headerPredicate.and(headerPredicate);
+	}
+
+	/**
+	 * Set the Predicate that filters the header names to use for data binding.
+	 * <p>Note that this method resets any previous predicates that may have been
+	 * set, including headers excluded by default such as the RFC 9218 defined
+	 * "Priority" header.
+	 * @param headerPredicate the predicate to add
+	 * @since 6.2.1
+	 */
+	public void setHeaderPredicate(Predicate<String> headerPredicate) {
+		this.headerPredicate = headerPredicate;
+	}
+
+
 	@Override
 	protected ServletRequestValueResolver createValueResolver(ServletRequest request) {
 		return new ExtendedServletRequestValueResolver(request, this);
@@ -81,43 +116,83 @@ public class ExtendedServletRequestDataBinder extends ServletRequestDataBinder {
 	protected void addBindValues(MutablePropertyValues mpvs, ServletRequest request) {
 		Map<String, String> uriVars = getUriVars(request);
 		if (uriVars != null) {
-			uriVars.forEach((name, value) -> {
-				if (mpvs.contains(name)) {
-					if (logger.isDebugEnabled()) {
-						logger.debug("URI variable '" + name + "' overridden by request bind value.");
-					}
+			uriVars.forEach((name, value) -> addValueIfNotPresent(mpvs, "URI variable", name, value));
+		}
+		if (request instanceof HttpServletRequest httpRequest) {
+			Enumeration<String> names = httpRequest.getHeaderNames();
+			while (names.hasMoreElements()) {
+				String name = names.nextElement();
+				Object value = getHeaderValue(httpRequest, name);
+				if (value != null) {
+					name = StringUtils.uncapitalize(name.replace("-", ""));
+					addValueIfNotPresent(mpvs, "Header", name, value);
 				}
-				else {
-					mpvs.addPropertyValue(name, value);
-				}
-			});
+			}
 		}
 	}
 
 	@SuppressWarnings("unchecked")
 	@Nullable
 	private static Map<String, String> getUriVars(ServletRequest request) {
-		String attr = HandlerMapping.URI_TEMPLATE_VARIABLES_ATTRIBUTE;
-		return (Map<String, String>) request.getAttribute(attr);
+		return (Map<String, String>) request.getAttribute(HandlerMapping.URI_TEMPLATE_VARIABLES_ATTRIBUTE);
+	}
+
+	private static void addValueIfNotPresent(MutablePropertyValues mpvs, String label, String name, Object value) {
+		if (mpvs.contains(name)) {
+			if (logger.isDebugEnabled()) {
+				logger.debug(label + " '" + name + "' overridden by request bind value.");
+			}
+		}
+		else {
+			mpvs.addPropertyValue(name, value);
+		}
+	}
+
+	@Nullable
+	private Object getHeaderValue(HttpServletRequest request, String name) {
+		if (!this.headerPredicate.test(name)) {
+			return null;
+		}
+
+		Enumeration<String> valuesEnum = request.getHeaders(name);
+		if (!valuesEnum.hasMoreElements()) {
+			return null;
+		}
+
+		String value = valuesEnum.nextElement();
+		if (!valuesEnum.hasMoreElements()) {
+			return value;
+		}
+
+		List<Object> values = new ArrayList<>();
+		values.add(value);
+		while (valuesEnum.hasMoreElements()) {
+			values.add(valuesEnum.nextElement());
+		}
+		return values;
 	}
 
 
 	/**
 	 * Resolver of values that looks up URI path variables.
 	 */
-	private static class ExtendedServletRequestValueResolver extends ServletRequestValueResolver {
+	private class ExtendedServletRequestValueResolver extends ServletRequestValueResolver {
 
 		ExtendedServletRequestValueResolver(ServletRequest request, WebDataBinder dataBinder) {
 			super(request, dataBinder);
 		}
 
 		@Override
+		@Nullable
 		protected Object getRequestParameter(String name, Class<?> type) {
 			Object value = super.getRequestParameter(name, type);
 			if (value == null) {
 				Map<String, String> uriVars = getUriVars(getRequest());
 				if (uriVars != null) {
 					value = uriVars.get(name);
+				}
+				if (value == null && getRequest() instanceof HttpServletRequest httpServletRequest) {
+					value = getHeaderValue(httpServletRequest, name);
 				}
 			}
 			return value;
@@ -129,6 +204,13 @@ public class ExtendedServletRequestDataBinder extends ServletRequestDataBinder {
 			Map<String, String> uriVars = getUriVars(getRequest());
 			if (uriVars != null) {
 				set.addAll(uriVars.keySet());
+			}
+			if (request instanceof HttpServletRequest httpServletRequest) {
+				Enumeration<String> enumeration = httpServletRequest.getHeaderNames();
+				while (enumeration.hasMoreElements()) {
+					String headerName = enumeration.nextElement();
+					set.add(headerName.replaceAll("-", ""));
+				}
 			}
 			return set;
 		}

@@ -28,6 +28,7 @@ import java.util.Map;
 import java.util.Properties;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
+import java.util.concurrent.locks.Lock;
 import java.util.concurrent.locks.ReentrantLock;
 
 import org.springframework.context.ResourceLoaderAware;
@@ -62,7 +63,7 @@ import org.springframework.util.StringUtils;
  * other than "-1" (caching forever) might not work reliably in this case.
  *
  * <p>For a typical web application, message files could be placed in {@code WEB-INF}:
- * e.g. a "WEB-INF/messages" basename would find a "WEB-INF/messages.properties",
+ * for example, a "WEB-INF/messages" basename would find a "WEB-INF/messages.properties",
  * "WEB-INF/messages_en.properties" etc arrangement as well as "WEB-INF/messages.xml",
  * "WEB-INF/messages_en.xml" etc. Note that message definitions in a <i>previous</i>
  * resource bundle will override ones in a later bundle, due to sequential lookup.
@@ -136,7 +137,7 @@ public class ReloadableResourceBundleMessageSource extends AbstractResourceBased
 	 * <p>Only applies to classic properties files, not to XML files.
 	 * @param fileEncodings a Properties with filenames as keys and charset
 	 * names as values. Filenames have to match the basename syntax,
-	 * with optional locale-specific components: e.g. "WEB-INF/messages"
+	 * with optional locale-specific components: for example, "WEB-INF/messages"
 	 * or "WEB-INF/messages_en".
 	 * @see #setBasenames
 	 * @see org.springframework.util.PropertiesPersister#load
@@ -190,6 +191,7 @@ public class ReloadableResourceBundleMessageSource extends AbstractResourceBased
 	 * returning the value found in the bundle as-is (without MessageFormat parsing).
 	 */
 	@Override
+	@Nullable
 	protected String resolveCodeWithoutArguments(String code, Locale locale) {
 		if (getCacheMillis() < 0) {
 			PropertiesHolder propHolder = getMergedProperties(locale);
@@ -250,36 +252,66 @@ public class ReloadableResourceBundleMessageSource extends AbstractResourceBased
 	 * <p>Only used when caching resource bundle contents forever, i.e.
 	 * with cacheSeconds &lt; 0. Therefore, merged properties are always
 	 * cached forever.
+	 * @see #collectPropertiesToMerge
+	 * @see #mergeProperties
 	 */
 	protected PropertiesHolder getMergedProperties(Locale locale) {
 		PropertiesHolder mergedHolder = this.cachedMergedProperties.get(locale);
 		if (mergedHolder != null) {
 			return mergedHolder;
 		}
+		mergedHolder = mergeProperties(collectPropertiesToMerge(locale));
+		PropertiesHolder existing = this.cachedMergedProperties.putIfAbsent(locale, mergedHolder);
+		if (existing != null) {
+			mergedHolder = existing;
+		}
+		return mergedHolder;
+	}
 
-		Properties mergedProps = newProperties();
-		long latestTimestamp = -1;
+	/**
+	 * Determine the properties to merge based on the specified basenames.
+	 * @param locale the locale
+	 * @return the list of properties holders
+	 * @since 6.1.4
+	 * @see #getBasenameSet()
+	 * @see #calculateAllFilenames
+	 * @see #mergeProperties
+	 */
+	protected List<PropertiesHolder> collectPropertiesToMerge(Locale locale) {
 		String[] basenames = StringUtils.toStringArray(getBasenameSet());
+		List<PropertiesHolder> holders = new ArrayList<>(basenames.length);
 		for (int i = basenames.length - 1; i >= 0; i--) {
 			List<String> filenames = calculateAllFilenames(basenames[i], locale);
 			for (int j = filenames.size() - 1; j >= 0; j--) {
 				String filename = filenames.get(j);
 				PropertiesHolder propHolder = getProperties(filename);
 				if (propHolder.getProperties() != null) {
-					mergedProps.putAll(propHolder.getProperties());
-					if (propHolder.getFileTimestamp() > latestTimestamp) {
-						latestTimestamp = propHolder.getFileTimestamp();
-					}
+					holders.add(propHolder);
 				}
 			}
 		}
+		return holders;
+	}
 
-		mergedHolder = new PropertiesHolder(mergedProps, latestTimestamp);
-		PropertiesHolder existing = this.cachedMergedProperties.putIfAbsent(locale, mergedHolder);
-		if (existing != null) {
-			mergedHolder = existing;
+	/**
+	 * Merge the given properties holders into a single holder.
+	 * @param holders the list of properties holders
+	 * @return a single merged properties holder
+	 * @since 6.1.4
+	 * @see #newProperties()
+	 * @see #getMergedProperties
+	 * @see #collectPropertiesToMerge
+	 */
+	protected PropertiesHolder mergeProperties(List<PropertiesHolder> holders) {
+		Properties mergedProps = newProperties();
+		long latestTimestamp = -1;
+		for (PropertiesHolder holder : holders) {
+			mergedProps.putAll(holder.getProperties());
+			if (holder.getFileTimestamp() > latestTimestamp) {
+				latestTimestamp = holder.getFileTimestamp();
+			}
 		}
-		return mergedHolder;
+		return new PropertiesHolder(mergedProps, latestTimestamp);
 	}
 
 	/**
@@ -620,7 +652,7 @@ public class ReloadableResourceBundleMessageSource extends AbstractResourceBased
 
 		private volatile long refreshTimestamp = -2;
 
-		private final ReentrantLock refreshLock = new ReentrantLock();
+		private final Lock refreshLock = new ReentrantLock();
 
 		/** Cache to hold already generated MessageFormats per message code. */
 		private final ConcurrentMap<String, Map<Locale, MessageFormat>> cachedMessageFormats =

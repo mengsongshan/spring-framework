@@ -184,7 +184,7 @@ public class LocalContainerEntityManagerFactoryBean extends AbstractEntityManage
 	 * In particular, JPA providers may pick up annotated packages for provider-specific
 	 * annotations only when driven by {@code persistence.xml}. As of 4.1, Spring's
 	 * scan can detect annotated packages as well if supported by the given
-	 * {@link JpaVendorAdapter} (e.g. for Hibernate).
+	 * {@link JpaVendorAdapter} (for example, for Hibernate).
 	 * <p>If no explicit {@link #setMappingResources mapping resources} have been
 	 * specified in addition to these packages, Spring's setup looks for a default
 	 * {@code META-INF/orm.xml} file in the classpath, registering it as a mapping
@@ -218,7 +218,7 @@ public class LocalContainerEntityManagerFactoryBean extends AbstractEntityManage
 	 * Can be used on its own or in combination with entity scanning in the classpath,
 	 * in both cases avoiding {@code persistence.xml}.
 	 * <p>Note that mapping resources must be relative to the classpath root,
-	 * e.g. "META-INF/mappings.xml" or "com/mycompany/repository/mappings.xml",
+	 * for example, "META-INF/mappings.xml" or "com/mycompany/repository/mappings.xml",
 	 * so that they can be loaded through {@code ClassLoader.getResource}.
 	 * <p>If no explicit mapping resources have been specified next to
 	 * {@link #setPackagesToScan packages to scan}, Spring's setup looks for a default
@@ -276,8 +276,9 @@ public class LocalContainerEntityManagerFactoryBean extends AbstractEntityManage
 	 * @see jakarta.persistence.spi.PersistenceUnitInfo#getNonJtaDataSource()
 	 * @see #setPersistenceUnitManager
 	 */
-	public void setDataSource(DataSource dataSource) {
-		this.internalPersistenceUnitManager.setDataSourceLookup(new SingleDataSourceLookup(dataSource));
+	public void setDataSource(@Nullable DataSource dataSource) {
+		this.internalPersistenceUnitManager.setDataSourceLookup(
+				dataSource != null ? new SingleDataSourceLookup(dataSource) : null);
 		this.internalPersistenceUnitManager.setDefaultDataSource(dataSource);
 	}
 
@@ -293,8 +294,9 @@ public class LocalContainerEntityManagerFactoryBean extends AbstractEntityManage
 	 * @see jakarta.persistence.spi.PersistenceUnitInfo#getJtaDataSource()
 	 * @see #setPersistenceUnitManager
 	 */
-	public void setJtaDataSource(DataSource jtaDataSource) {
-		this.internalPersistenceUnitManager.setDataSourceLookup(new SingleDataSourceLookup(jtaDataSource));
+	public void setJtaDataSource(@Nullable DataSource jtaDataSource) {
+		this.internalPersistenceUnitManager.setDataSourceLookup(
+				jtaDataSource != null ? new SingleDataSourceLookup(jtaDataSource) : null);
 		this.internalPersistenceUnitManager.setDefaultJtaDataSource(jtaDataSource);
 	}
 
@@ -347,7 +349,7 @@ public class LocalContainerEntityManagerFactoryBean extends AbstractEntityManage
 	@Override
 	public void afterPropertiesSet() throws PersistenceException {
 		PersistenceUnitManager managerToUse = this.persistenceUnitManager;
-		if (this.persistenceUnitManager == null) {
+		if (managerToUse == null) {
 			this.internalPersistenceUnitManager.afterPropertiesSet();
 			managerToUse = this.internalPersistenceUnitManager;
 		}
@@ -439,6 +441,7 @@ public class LocalContainerEntityManagerFactoryBean extends AbstractEntityManage
 	}
 
 	@Override
+	@Nullable
 	public DataSource getDataSource() {
 		if (this.persistenceUnitInfo != null) {
 			return (this.persistenceUnitInfo.getJtaDataSource() != null ?

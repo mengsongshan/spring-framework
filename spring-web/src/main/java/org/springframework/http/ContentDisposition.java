@@ -1,5 +1,5 @@
 /*
- * Copyright 2002-2023 the original author or authors.
+ * Copyright 2002-2024 the original author or authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -19,8 +19,6 @@ package org.springframework.http;
 import java.io.ByteArrayOutputStream;
 import java.nio.charset.Charset;
 import java.nio.charset.StandardCharsets;
-import java.time.ZonedDateTime;
-import java.time.format.DateTimeParseException;
 import java.util.ArrayList;
 import java.util.Base64;
 import java.util.BitSet;
@@ -36,7 +34,6 @@ import org.springframework.util.StreamUtils;
 import static java.nio.charset.StandardCharsets.ISO_8859_1;
 import static java.nio.charset.StandardCharsets.US_ASCII;
 import static java.nio.charset.StandardCharsets.UTF_8;
-import static java.time.format.DateTimeFormatter.RFC_1123_DATE_TIME;
 
 /**
  * Representation of the Content-Disposition type and parameters as defined in RFC 6266.
@@ -85,34 +82,17 @@ public final class ContentDisposition {
 	@Nullable
 	private final Charset charset;
 
-	@Nullable
-	private final Long size;
-
-	@Nullable
-	private final ZonedDateTime creationDate;
-
-	@Nullable
-	private final ZonedDateTime modificationDate;
-
-	@Nullable
-	private final ZonedDateTime readDate;
-
 
 	/**
 	 * Private constructor. See static factory methods in this class.
 	 */
 	private ContentDisposition(@Nullable String type, @Nullable String name, @Nullable String filename,
-			@Nullable Charset charset, @Nullable Long size, @Nullable ZonedDateTime creationDate,
-			@Nullable ZonedDateTime modificationDate, @Nullable ZonedDateTime readDate) {
+			@Nullable Charset charset) {
 
 		this.type = type;
 		this.name = name;
 		this.filename = filename;
 		this.charset = charset;
-		this.size = size;
-		this.creationDate = creationDate;
-		this.modificationDate = modificationDate;
-		this.readDate = readDate;
 	}
 
 
@@ -177,53 +157,6 @@ public final class ContentDisposition {
 		return this.charset;
 	}
 
-	/**
-	 * Return the value of the {@literal size} parameter, or {@code null} if not defined.
-	 * @deprecated since 5.2.3 as per
-	 * <a href="https://tools.ietf.org/html/rfc6266#appendix-B">RFC 6266, Appendix B</a>,
-	 * to be removed in a future release.
-	 */
-	@Deprecated
-	@Nullable
-	public Long getSize() {
-		return this.size;
-	}
-
-	/**
-	 * Return the value of the {@literal creation-date} parameter, or {@code null} if not defined.
-	 * @deprecated since 5.2.3 as per
-	 * <a href="https://tools.ietf.org/html/rfc6266#appendix-B">RFC 6266, Appendix B</a>,
-	 * to be removed in a future release.
-	 */
-	@Deprecated
-	@Nullable
-	public ZonedDateTime getCreationDate() {
-		return this.creationDate;
-	}
-
-	/**
-	 * Return the value of the {@literal modification-date} parameter, or {@code null} if not defined.
-	 * @deprecated since 5.2.3 as per
-	 * <a href="https://tools.ietf.org/html/rfc6266#appendix-B">RFC 6266, Appendix B</a>,
-	 * to be removed in a future release.
-	 */
-	@Deprecated
-	@Nullable
-	public ZonedDateTime getModificationDate() {
-		return this.modificationDate;
-	}
-
-	/**
-	 * Return the value of the {@literal read-date} parameter, or {@code null} if not defined.
-	 * @deprecated since 5.2.3 as per
-	 * <a href="https://tools.ietf.org/html/rfc6266#appendix-B">RFC 6266, Appendix B</a>,
-	 * to be removed in a future release.
-	 */
-	@Deprecated
-	@Nullable
-	public ZonedDateTime getReadDate() {
-		return this.readDate;
-	}
 
 	@Override
 	public boolean equals(@Nullable Object other) {
@@ -231,17 +164,12 @@ public final class ContentDisposition {
 				ObjectUtils.nullSafeEquals(this.type, that.type) &&
 				ObjectUtils.nullSafeEquals(this.name, that.name) &&
 				ObjectUtils.nullSafeEquals(this.filename, that.filename) &&
-				ObjectUtils.nullSafeEquals(this.charset, that.charset) &&
-				ObjectUtils.nullSafeEquals(this.size, that.size) &&
-				ObjectUtils.nullSafeEquals(this.creationDate, that.creationDate)&&
-				ObjectUtils.nullSafeEquals(this.modificationDate, that.modificationDate)&&
-				ObjectUtils.nullSafeEquals(this.readDate, that.readDate)));
+				ObjectUtils.nullSafeEquals(this.charset, that.charset)));
 	}
 
 	@Override
 	public int hashCode() {
-		return ObjectUtils.nullSafeHash(this.type, this.name,this.filename,
-				this.charset, this.size, this.creationDate, this.modificationDate, this.readDate);
+		return ObjectUtils.nullSafeHash(this.type, this.name,this.filename, this.charset);
 	}
 
 	/**
@@ -269,25 +197,6 @@ public final class ContentDisposition {
 				sb.append("; filename*=");
 				sb.append(encodeRfc5987Filename(this.filename, this.charset));
 			}
-		}
-		if (this.size != null) {
-			sb.append("; size=");
-			sb.append(this.size);
-		}
-		if (this.creationDate != null) {
-			sb.append("; creation-date=\"");
-			sb.append(RFC_1123_DATE_TIME.format(this.creationDate));
-			sb.append('\"');
-		}
-		if (this.modificationDate != null) {
-			sb.append("; modification-date=\"");
-			sb.append(RFC_1123_DATE_TIME.format(this.modificationDate));
-			sb.append('\"');
-		}
-		if (this.readDate != null) {
-			sb.append("; read-date=\"");
-			sb.append(RFC_1123_DATE_TIME.format(this.readDate));
-			sb.append('\"');
 		}
 		return sb.toString();
 	}
@@ -331,7 +240,7 @@ public final class ContentDisposition {
 	 * Return an empty content disposition.
 	 */
 	public static ContentDisposition empty() {
-		return new ContentDisposition("", null, null, null, null, null, null, null);
+		return new ContentDisposition("", null, null, null);
 	}
 
 	/**
@@ -346,10 +255,6 @@ public final class ContentDisposition {
 		String name = null;
 		String filename = null;
 		Charset charset = null;
-		Long size = null;
-		ZonedDateTime creationDate = null;
-		ZonedDateTime modificationDate = null;
-		ZonedDateTime readDate = null;
 		for (int i = 1; i < parts.size(); i++) {
 			String part = parts.get(i);
 			int eqIndex = part.indexOf('=');
@@ -376,7 +281,7 @@ public final class ContentDisposition {
 					}
 				}
 				else if (attribute.equals("filename") && (filename == null)) {
-					if (value.startsWith("=?") ) {
+					if (value.startsWith("=?")) {
 						Matcher matcher = BASE64_ENCODED_PATTERN.matcher(value);
 						if (matcher.find()) {
 							Base64.Decoder decoder = Base64.getDecoder();
@@ -415,39 +320,12 @@ public final class ContentDisposition {
 						filename = value;
 					}
 				}
-				else if (attribute.equals("size") ) {
-					size = Long.parseLong(value);
-				}
-				else if (attribute.equals("creation-date")) {
-					try {
-						creationDate = ZonedDateTime.parse(value, RFC_1123_DATE_TIME);
-					}
-					catch (DateTimeParseException ex) {
-						// ignore
-					}
-				}
-				else if (attribute.equals("modification-date")) {
-					try {
-						modificationDate = ZonedDateTime.parse(value, RFC_1123_DATE_TIME);
-					}
-					catch (DateTimeParseException ex) {
-						// ignore
-					}
-				}
-				else if (attribute.equals("read-date")) {
-					try {
-						readDate = ZonedDateTime.parse(value, RFC_1123_DATE_TIME);
-					}
-					catch (DateTimeParseException ex) {
-						// ignore
-					}
-				}
 			}
 			else {
 				throw new IllegalArgumentException("Invalid content disposition format");
 			}
 		}
-		return new ContentDisposition(type, name, filename, charset, size, creationDate, modificationDate, readDate);
+		return new ContentDisposition(type, name, filename, charset);
 	}
 
 	private static List<String> tokenize(String headerValue) {
@@ -698,7 +576,7 @@ public final class ContentDisposition {
 		 * Set the value of the {@literal filename} parameter. The given
 		 * filename will be formatted as quoted-string, as defined in RFC 2616,
 		 * section 2.2, and any quote characters within the filename value will
-		 * be escaped with a backslash, e.g. {@code "foo\"bar.txt"} becomes
+		 * be escaped with a backslash, for example, {@code "foo\"bar.txt"} becomes
 		 * {@code "foo\\\"bar.txt"}.
 		 */
 		Builder filename(@Nullable String filename);
@@ -713,42 +591,6 @@ public final class ContentDisposition {
 		 * and also RFC 5987 mention it does not apply to multipart requests.
 		 */
 		Builder filename(@Nullable String filename, @Nullable Charset charset);
-
-		/**
-		 * Set the value of the {@literal size} parameter.
-		 * @deprecated since 5.2.3 as per
-		 * <a href="https://tools.ietf.org/html/rfc6266#appendix-B">RFC 6266, Appendix B</a>,
-		 * to be removed in a future release.
-		 */
-		@Deprecated
-		Builder size(@Nullable Long size);
-
-		/**
-		 * Set the value of the {@literal creation-date} parameter.
-		 * @deprecated since 5.2.3 as per
-		 * <a href="https://tools.ietf.org/html/rfc6266#appendix-B">RFC 6266, Appendix B</a>,
-		 * to be removed in a future release.
-		 */
-		@Deprecated
-		Builder creationDate(@Nullable ZonedDateTime creationDate);
-
-		/**
-		 * Set the value of the {@literal modification-date} parameter.
-		 * @deprecated since 5.2.3 as per
-		 * <a href="https://tools.ietf.org/html/rfc6266#appendix-B">RFC 6266, Appendix B</a>,
-		 * to be removed in a future release.
-		 */
-		@Deprecated
-		Builder modificationDate(@Nullable ZonedDateTime modificationDate);
-
-		/**
-		 * Set the value of the {@literal read-date} parameter.
-		 * @deprecated since 5.2.3 as per
-		 * <a href="https://tools.ietf.org/html/rfc6266#appendix-B">RFC 6266, Appendix B</a>,
-		 * to be removed in a future release.
-		 */
-		@Deprecated
-		Builder readDate(@Nullable ZonedDateTime readDate);
 
 		/**
 		 * Build the content disposition.
@@ -770,17 +612,6 @@ public final class ContentDisposition {
 		@Nullable
 		private Charset charset;
 
-		@Nullable
-		private Long size;
-
-		@Nullable
-		private ZonedDateTime creationDate;
-
-		@Nullable
-		private ZonedDateTime modificationDate;
-
-		@Nullable
-		private ZonedDateTime readDate;
 
 		public BuilderImpl(String type) {
 			Assert.hasText(type, "'type' must not be not empty");
@@ -788,56 +619,27 @@ public final class ContentDisposition {
 		}
 
 		@Override
-		public Builder name(String name) {
+		public Builder name(@Nullable String name) {
 			this.name = name;
 			return this;
 		}
 
 		@Override
-		public Builder filename(String filename) {
+		public Builder filename(@Nullable String filename) {
 			this.filename = filename;
 			return this;
 		}
 
 		@Override
-		public Builder filename(String filename, Charset charset) {
+		public Builder filename(@Nullable String filename, @Nullable Charset charset) {
 			this.filename = filename;
 			this.charset = charset;
 			return this;
 		}
 
 		@Override
-		@SuppressWarnings("deprecation")
-		public Builder size(Long size) {
-			this.size = size;
-			return this;
-		}
-
-		@Override
-		@SuppressWarnings("deprecation")
-		public Builder creationDate(ZonedDateTime creationDate) {
-			this.creationDate = creationDate;
-			return this;
-		}
-
-		@Override
-		@SuppressWarnings("deprecation")
-		public Builder modificationDate(ZonedDateTime modificationDate) {
-			this.modificationDate = modificationDate;
-			return this;
-		}
-
-		@Override
-		@SuppressWarnings("deprecation")
-		public Builder readDate(ZonedDateTime readDate) {
-			this.readDate = readDate;
-			return this;
-		}
-
-		@Override
 		public ContentDisposition build() {
-			return new ContentDisposition(this.type, this.name, this.filename, this.charset,
-					this.size, this.creationDate, this.modificationDate, this.readDate);
+			return new ContentDisposition(this.type, this.name, this.filename, this.charset);
 		}
 	}
 

@@ -1,5 +1,5 @@
 /*
- * Copyright 2002-2023 the original author or authors.
+ * Copyright 2002-2024 the original author or authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -38,6 +38,11 @@ public class RestrictedTransactionalEventListenerFactory extends TransactionalEv
 	@Override
 	public ApplicationListener<?> createApplicationListener(String beanName, Class<?> type, Method method) {
 		Transactional txAnn = AnnotatedElementUtils.findMergedAnnotation(method, Transactional.class);
+
+		if (txAnn == null) {
+			txAnn = AnnotatedElementUtils.findMergedAnnotation(type, Transactional.class);
+		}
+
 		if (txAnn != null) {
 			Propagation propagation = txAnn.propagation();
 			if (propagation != Propagation.REQUIRES_NEW && propagation != Propagation.NOT_SUPPORTED) {

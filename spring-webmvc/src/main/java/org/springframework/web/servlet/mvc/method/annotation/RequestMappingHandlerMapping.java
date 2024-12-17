@@ -449,7 +449,8 @@ public class RequestMappingHandlerMapping extends RequestMappingInfoHandlerMappi
 				.paths(resolveEmbeddedValuesInPatterns(toStringArray(httpExchange.value())))
 				.methods(toMethodArray(httpExchange.method()))
 				.consumes(toStringArray(httpExchange.contentType()))
-				.produces(httpExchange.accept());
+				.produces(httpExchange.accept())
+				.headers(httpExchange.headers());
 
 		if (customCondition != null) {
 			builder.customCondition(customCondition);
@@ -523,6 +524,7 @@ public class RequestMappingHandlerMapping extends RequestMappingInfoHandlerMappi
 	}
 
 	@Override
+	@Nullable
 	public RequestMatchResult match(HttpServletRequest request, String pattern) {
 		Assert.state(getPatternParser() == null, "This HandlerMapping uses PathPatterns.");
 		RequestMappingInfo info = RequestMappingInfo.paths(pattern).options(this.config).build();
@@ -535,6 +537,7 @@ public class RequestMappingHandlerMapping extends RequestMappingInfoHandlerMappi
 	}
 
 	@Override
+	@Nullable
 	protected CorsConfiguration initCorsConfiguration(Object handler, Method method, RequestMappingInfo mappingInfo) {
 		HandlerMethod handlerMethod = createHandlerMethod(handler, method);
 		Class<?> beanType = handlerMethod.getBeanType();

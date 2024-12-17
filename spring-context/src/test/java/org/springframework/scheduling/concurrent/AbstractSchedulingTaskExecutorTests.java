@@ -35,6 +35,7 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.TestInfo;
 
 import org.springframework.beans.factory.DisposableBean;
+import org.springframework.core.task.AsyncTaskExecutor;
 import org.springframework.lang.Nullable;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -47,8 +48,7 @@ import static org.assertj.core.api.Assertions.assertThatExceptionOfType;
  */
 abstract class AbstractSchedulingTaskExecutorTests {
 
-	@SuppressWarnings("deprecation")
-	private org.springframework.core.task.AsyncListenableTaskExecutor executor;
+	private AsyncTaskExecutor executor;
 
 	protected String testName;
 
@@ -64,8 +64,7 @@ abstract class AbstractSchedulingTaskExecutorTests {
 		this.executor = buildExecutor();
 	}
 
-	@SuppressWarnings("deprecation")
-	protected abstract org.springframework.core.task.AsyncListenableTaskExecutor buildExecutor();
+	protected abstract AsyncTaskExecutor buildExecutor();
 
 	@AfterEach
 	void shutdownExecutor() throws Exception {
@@ -89,7 +88,7 @@ abstract class AbstractSchedulingTaskExecutorTests {
 		executor.execute(task);
 		Awaitility.await()
 				.dontCatchUncaughtExceptions()
-				.atMost(1, TimeUnit.SECONDS)
+				.atMost(5, TimeUnit.SECONDS)
 				.pollInterval(10, TimeUnit.MILLISECONDS)
 				.until(() -> task.exception.get() != null && task.exception.get().getMessage().equals(
 						"TestTask failure for test 'executeFailingRunnable': expectedRunCount:<0>, actualRunCount:<1>"));
@@ -125,22 +124,6 @@ abstract class AbstractSchedulingTaskExecutorTests {
 	}
 
 	@Test
-	@SuppressWarnings("deprecation")
-	void submitListenableRunnable() {
-		TestTask task = new TestTask(this.testName, 1);
-		// Act
-		org.springframework.util.concurrent.ListenableFuture<?> future = executor.submitListenable(task);
-		future.addCallback(result -> outcome = result, ex -> outcome = ex);
-		// Assert
-		Awaitility.await()
-				.atMost(1, TimeUnit.SECONDS)
-				.pollInterval(10, TimeUnit.MILLISECONDS)
-				.until(future::isDone);
-		assertThat(outcome).isNull();
-		assertThreadNamePrefix(task);
-	}
-
-	@Test
 	void submitCompletableRunnable() {
 		TestTask task = new TestTask(this.testName, 1);
 		// Act
@@ -148,26 +131,11 @@ abstract class AbstractSchedulingTaskExecutorTests {
 		future.whenComplete(this::storeOutcome);
 		// Assert
 		Awaitility.await()
-				.atMost(1, TimeUnit.SECONDS)
+				.atMost(5, TimeUnit.SECONDS)
 				.pollInterval(10, TimeUnit.MILLISECONDS)
 				.until(future::isDone);
 		assertThat(outcome).isNull();
 		assertThreadNamePrefix(task);
-	}
-
-	@Test
-	@SuppressWarnings("deprecation")
-	void submitFailingListenableRunnable() {
-		TestTask task = new TestTask(this.testName, 0);
-		org.springframework.util.concurrent.ListenableFuture<?> future = executor.submitListenable(task);
-		future.addCallback(result -> outcome = result, ex -> outcome = ex);
-
-		Awaitility.await()
-				.dontCatchUncaughtExceptions()
-				.atMost(1, TimeUnit.SECONDS)
-				.pollInterval(10, TimeUnit.MILLISECONDS)
-				.until(() -> future.isDone() && outcome != null);
-		assertThat(outcome.getClass()).isSameAs(RuntimeException.class);
 	}
 
 	@Test
@@ -178,30 +146,10 @@ abstract class AbstractSchedulingTaskExecutorTests {
 
 		Awaitility.await()
 				.dontCatchUncaughtExceptions()
-				.atMost(1, TimeUnit.SECONDS)
+				.atMost(5, TimeUnit.SECONDS)
 				.pollInterval(10, TimeUnit.MILLISECONDS)
 				.until(() -> future.isDone() && outcome != null);
 		assertThat(outcome.getClass()).isSameAs(CompletionException.class);
-	}
-
-	@Test
-	@SuppressWarnings("deprecation")
-	void submitListenableRunnableWithGetAfterShutdown() throws Exception {
-		org.springframework.util.concurrent.ListenableFuture<?> future1 = executor.submitListenable(new TestTask(this.testName, -1));
-		org.springframework.util.concurrent.ListenableFuture<?> future2 = executor.submitListenable(new TestTask(this.testName, -1));
-		shutdownExecutor();
-
-		try {
-			future1.get(1000, TimeUnit.MILLISECONDS);
-		}
-		catch (Exception ex) {
-			// ignore
-		}
-		Awaitility.await()
-				.atMost(4, TimeUnit.SECONDS)
-				.pollInterval(10, TimeUnit.MILLISECONDS)
-				.untilAsserted(() -> assertThatExceptionOfType(CancellationException.class)
-						.isThrownBy(() -> future2.get(1000, TimeUnit.MILLISECONDS)));
 	}
 
 	@Test
@@ -209,18 +157,10 @@ abstract class AbstractSchedulingTaskExecutorTests {
 		CompletableFuture<?> future1 = executor.submitCompletable(new TestTask(this.testName, -1));
 		CompletableFuture<?> future2 = executor.submitCompletable(new TestTask(this.testName, -1));
 		shutdownExecutor();
-
-		try {
+		assertThatExceptionOfType(TimeoutException.class).isThrownBy(() -> {
 			future1.get(1000, TimeUnit.MILLISECONDS);
-		}
-		catch (Exception ex) {
-			// ignore
-		}
-		Awaitility.await()
-				.atMost(4, TimeUnit.SECONDS)
-				.pollInterval(10, TimeUnit.MILLISECONDS)
-				.untilAsserted(() -> assertThatExceptionOfType(TimeoutException.class)
-						.isThrownBy(() -> future2.get(1000, TimeUnit.MILLISECONDS)));
+			future2.get(1000, TimeUnit.MILLISECONDS);
+		});
 	}
 
 	@Test
@@ -245,57 +185,6 @@ abstract class AbstractSchedulingTaskExecutorTests {
 		Future<?> future1 = executor.submit(new TestCallable(this.testName, -1));
 		Future<?> future2 = executor.submit(new TestCallable(this.testName, -1));
 		shutdownExecutor();
-
-		try {
-			future1.get(1000, TimeUnit.MILLISECONDS);
-		}
-		catch (Exception ex) {
-			// ignore
-		}
-		Awaitility.await()
-				.atMost(4, TimeUnit.SECONDS)
-				.pollInterval(10, TimeUnit.MILLISECONDS)
-				.untilAsserted(() -> assertThatExceptionOfType(CancellationException.class)
-						.isThrownBy(() -> future2.get(1000, TimeUnit.MILLISECONDS)));
-	}
-
-	@Test
-	@SuppressWarnings("deprecation")
-	void submitListenableCallable() {
-		TestCallable task = new TestCallable(this.testName, 1);
-		// Act
-		org.springframework.util.concurrent.ListenableFuture<String> future = executor.submitListenable(task);
-		future.addCallback(result -> outcome = result, ex -> outcome = ex);
-		// Assert
-		Awaitility.await()
-				.atMost(1, TimeUnit.SECONDS)
-				.pollInterval(10, TimeUnit.MILLISECONDS)
-				.until(() -> future.isDone() && outcome != null);
-		assertThat(outcome.toString().substring(0, this.threadNamePrefix.length())).isEqualTo(this.threadNamePrefix);
-	}
-
-	@Test
-	@SuppressWarnings("deprecation")
-	void submitFailingListenableCallable() {
-		TestCallable task = new TestCallable(this.testName, 0);
-		// Act
-		org.springframework.util.concurrent.ListenableFuture<String> future = executor.submitListenable(task);
-		future.addCallback(result -> outcome = result, ex -> outcome = ex);
-		// Assert
-		Awaitility.await()
-				.dontCatchUncaughtExceptions()
-				.atMost(1, TimeUnit.SECONDS)
-				.pollInterval(10, TimeUnit.MILLISECONDS)
-				.until(() -> future.isDone() && outcome != null);
-		assertThat(outcome.getClass()).isSameAs(RuntimeException.class);
-	}
-
-	@Test
-	@SuppressWarnings("deprecation")
-	void submitListenableCallableWithGetAfterShutdown() throws Exception {
-		org.springframework.util.concurrent.ListenableFuture<?> future1 = executor.submitListenable(new TestCallable(this.testName, -1));
-		org.springframework.util.concurrent.ListenableFuture<?> future2 = executor.submitListenable(new TestCallable(this.testName, -1));
-		shutdownExecutor();
 		assertThatExceptionOfType(CancellationException.class).isThrownBy(() -> {
 			future1.get(1000, TimeUnit.MILLISECONDS);
 			future2.get(1000, TimeUnit.MILLISECONDS);
@@ -310,7 +199,7 @@ abstract class AbstractSchedulingTaskExecutorTests {
 		future.whenComplete(this::storeOutcome);
 		// Assert
 		Awaitility.await()
-				.atMost(1, TimeUnit.SECONDS)
+				.atMost(5, TimeUnit.SECONDS)
 				.pollInterval(10, TimeUnit.MILLISECONDS)
 				.until(() -> future.isDone() && outcome != null);
 		assertThat(outcome.toString().substring(0, this.threadNamePrefix.length())).isEqualTo(this.threadNamePrefix);
@@ -325,7 +214,7 @@ abstract class AbstractSchedulingTaskExecutorTests {
 		// Assert
 		Awaitility.await()
 				.dontCatchUncaughtExceptions()
-				.atMost(1, TimeUnit.SECONDS)
+				.atMost(5, TimeUnit.SECONDS)
 				.pollInterval(10, TimeUnit.MILLISECONDS)
 				.until(() -> future.isDone() && outcome != null);
 		assertThat(outcome.getClass()).isSameAs(CompletionException.class);

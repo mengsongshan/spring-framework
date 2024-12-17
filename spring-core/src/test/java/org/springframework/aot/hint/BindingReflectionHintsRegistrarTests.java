@@ -1,5 +1,5 @@
 /*
- * Copyright 2002-2023 the original author or authors.
+ * Copyright 2002-2024 the original author or authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -54,7 +54,7 @@ class BindingReflectionHintsRegistrarTests {
 				.satisfies(typeHint -> {
 					assertThat(typeHint.getType()).isEqualTo(TypeReference.of(SampleEmptyClass.class));
 					assertThat(typeHint.getMemberCategories()).containsExactlyInAnyOrder(
-							MemberCategory.DECLARED_FIELDS, MemberCategory.INVOKE_DECLARED_CONSTRUCTORS);
+							MemberCategory.INVOKE_DECLARED_FIELDS, MemberCategory.INVOKE_DECLARED_CONSTRUCTORS);
 					assertThat(typeHint.constructors()).isEmpty();
 					assertThat(typeHint.fields()).isEmpty();
 					assertThat(typeHint.methods()).isEmpty();
@@ -68,7 +68,7 @@ class BindingReflectionHintsRegistrarTests {
 				typeHint -> {
 					assertThat(typeHint.getType()).isEqualTo(TypeReference.of(SampleEmptyClass.class));
 					assertThat(typeHint.getMemberCategories()).containsExactlyInAnyOrder(
-							MemberCategory.DECLARED_FIELDS, MemberCategory.INVOKE_DECLARED_CONSTRUCTORS);
+							MemberCategory.INVOKE_DECLARED_FIELDS, MemberCategory.INVOKE_DECLARED_CONSTRUCTORS);
 					assertThat(typeHint.constructors()).isEmpty();
 					assertThat(typeHint.fields()).isEmpty();
 					assertThat(typeHint.methods()).isEmpty();
@@ -76,7 +76,7 @@ class BindingReflectionHintsRegistrarTests {
 				typeHint -> {
 					assertThat(typeHint.getType()).isEqualTo(TypeReference.of(SampleExtendingClass.class));
 					assertThat(typeHint.getMemberCategories()).containsExactlyInAnyOrder(
-							MemberCategory.DECLARED_FIELDS, MemberCategory.INVOKE_DECLARED_CONSTRUCTORS);
+							MemberCategory.INVOKE_DECLARED_FIELDS, MemberCategory.INVOKE_DECLARED_CONSTRUCTORS);
 					assertThat(typeHint.constructors()).isEmpty();
 					assertThat(typeHint.fields()).isEmpty();
 					assertThat(typeHint.methods()).isEmpty();
@@ -198,7 +198,7 @@ class BindingReflectionHintsRegistrarTests {
 				typeHint -> {
 					assertThat(typeHint.getType()).isEqualTo(TypeReference.of(ResolvableType.class));
 					assertThat(typeHint.getMemberCategories()).containsExactlyInAnyOrder(
-							MemberCategory.DECLARED_FIELDS, MemberCategory.INVOKE_DECLARED_CONSTRUCTORS);
+							MemberCategory.INVOKE_DECLARED_FIELDS, MemberCategory.INVOKE_DECLARED_CONSTRUCTORS);
 					assertThat(typeHint.constructors()).isEmpty();
 					assertThat(typeHint.fields()).isEmpty();
 					assertThat(typeHint.methods()).hasSizeGreaterThan(1);
@@ -287,7 +287,8 @@ class BindingReflectionHintsRegistrarTests {
 		bindingRegistrar.registerReflectionHints(this.hints.reflection(), SampleRecordWithJacksonCustomStrategy.class);
 		assertThat(RuntimeHintsPredicates.reflection().onType(PropertyNamingStrategies.UpperSnakeCaseStrategy.class).withMemberCategory(MemberCategory.INVOKE_DECLARED_CONSTRUCTORS))
 				.accepts(this.hints);
-		assertThat(RuntimeHintsPredicates.reflection().onType(SampleRecordWithJacksonCustomStrategy.Builder.class).withMemberCategory(MemberCategory.INVOKE_DECLARED_CONSTRUCTORS))
+		assertThat(RuntimeHintsPredicates.reflection().onType(SampleRecordWithJacksonCustomStrategy.Builder.class)
+				.withMemberCategories(MemberCategory.INVOKE_DECLARED_CONSTRUCTORS, MemberCategory.INVOKE_DECLARED_METHODS))
 				.accepts(this.hints);
 	}
 

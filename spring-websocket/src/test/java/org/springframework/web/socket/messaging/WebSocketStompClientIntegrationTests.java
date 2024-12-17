@@ -44,7 +44,7 @@ import org.springframework.web.socket.client.standard.StandardWebSocketClient;
 import org.springframework.web.socket.config.annotation.StompEndpointRegistry;
 import org.springframework.web.socket.config.annotation.WebSocketMessageBrokerConfigurationSupport;
 import org.springframework.web.socket.server.RequestUpgradeStrategy;
-import org.springframework.web.socket.server.standard.TomcatRequestUpgradeStrategy;
+import org.springframework.web.socket.server.standard.StandardWebSocketUpgradeStrategy;
 import org.springframework.web.socket.server.support.DefaultHandshakeHandler;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -66,6 +66,8 @@ class WebSocketStompClientIntegrationTests {
 
 	private AnnotationConfigWebApplicationContext wac;
 
+	private String url;
+
 
 	@BeforeEach
 	void setUp(TestInfo testInfo) throws Exception {
@@ -83,6 +85,8 @@ class WebSocketStompClientIntegrationTests {
 		WebSocketClient webSocketClient = new StandardWebSocketClient();
 		this.stompClient = new WebSocketStompClient(webSocketClient);
 		this.stompClient.setMessageConverter(new StringMessageConverter());
+
+		this.url = "ws://127.0.0.1:" + this.server.getPort() + "/stomp";
 	}
 
 	@AfterEach
@@ -109,15 +113,28 @@ class WebSocketStompClientIntegrationTests {
 
 
 	@Test
-	@SuppressWarnings("deprecation")
 	void publishSubscribe() throws Exception {
-		String url = "ws://127.0.0.1:" + this.server.getPort() + "/stomp";
-
 		TestHandler testHandler = new TestHandler("/topic/foo", "payload");
-		this.stompClient.connect(url, testHandler);
+		this.stompClient.connectAsync(this.url, testHandler);
 
 		assertThat(testHandler.awaitForMessageCount(1, 5000)).isTrue();
 		assertThat(testHandler.getReceived()).containsExactly("payload");
+	}
+
+	@Test
+	void publishSubscribeWithSlitMessage() throws Exception {
+		StringBuilder sb = new StringBuilder();
+		while (sb.length() < 2000) {
+			sb.append("A message with a long body... ");
+		}
+		String payload = sb.toString();
+
+		TestHandler testHandler = new TestHandler("/topic/foo", payload);
+		this.stompClient.setOutboundMessageSizeLimit(512);
+		this.stompClient.connectAsync(this.url, testHandler);
+
+		assertThat(testHandler.awaitForMessageCount(1, 5000)).isTrue();
+		assertThat(testHandler.getReceived()).containsExactly(payload);
 	}
 
 
@@ -127,7 +144,7 @@ class WebSocketStompClientIntegrationTests {
 		@Override
 		protected void registerStompEndpoints(StompEndpointRegistry registry) {
 			// Can't rely on classpath detection
-			RequestUpgradeStrategy upgradeStrategy = new TomcatRequestUpgradeStrategy();
+			RequestUpgradeStrategy upgradeStrategy = new StandardWebSocketUpgradeStrategy();
 			registry.addEndpoint("/stomp")
 					.setHandshakeHandler(new DefaultHandshakeHandler(upgradeStrategy))
 					.setAllowedOrigins("*");

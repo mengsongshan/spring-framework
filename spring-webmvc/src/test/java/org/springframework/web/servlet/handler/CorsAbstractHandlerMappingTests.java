@@ -21,6 +21,7 @@ import java.util.stream.Stream;
 
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
+import org.junit.jupiter.api.Named;
 
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpMethod;
@@ -31,6 +32,7 @@ import org.springframework.web.HttpRequestHandler;
 import org.springframework.web.context.support.StaticWebApplicationContext;
 import org.springframework.web.cors.CorsConfiguration;
 import org.springframework.web.cors.CorsConfigurationSource;
+import org.springframework.web.cors.PreFlightRequestHandler;
 import org.springframework.web.servlet.HandlerExecutionChain;
 import org.springframework.web.servlet.HandlerInterceptor;
 import org.springframework.web.servlet.support.WebContentGenerator;
@@ -39,6 +41,7 @@ import org.springframework.web.util.ServletRequestPathUtils;
 import org.springframework.web.util.pattern.PathPatternParser;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.junit.jupiter.api.Named.named;
 import static org.mockito.Mockito.mock;
 
 /**
@@ -50,8 +53,11 @@ import static org.mockito.Mockito.mock;
 class CorsAbstractHandlerMappingTests {
 
 	@SuppressWarnings("unused")
-	private static Stream<TestHandlerMapping> pathPatternsArguments() {
-		return Stream.of(new TestHandlerMapping(new PathPatternParser()), new TestHandlerMapping());
+	private static Stream<Named<TestHandlerMapping>> pathPatternsArguments() {
+		return Stream.of(
+				named("TestHandlerMapping with PathPatternParser", new TestHandlerMapping(new PathPatternParser())),
+				named("TestHandlerMapping without PathPatternParser", new TestHandlerMapping())
+			);
 	}
 
 
@@ -72,7 +78,7 @@ class CorsAbstractHandlerMappingTests {
 
 		assertThat(chain).isNotNull();
 		assertThat(chain.getHandler()).isNotNull();
-		assertThat(chain.getHandler().getClass().getSimpleName()).isEqualTo("PreFlightHandler");
+		assertThat(chain.getHandler()).isInstanceOf(PreFlightRequestHandler.class);
 		assertThat(mapping.hasSavedCorsConfig()).isFalse();
 	}
 
@@ -103,7 +109,7 @@ class CorsAbstractHandlerMappingTests {
 
 		assertThat(chain).isNotNull();
 		assertThat(chain.getHandler()).isNotNull();
-		assertThat(chain.getHandler().getClass().getSimpleName()).isEqualTo("PreFlightHandler");
+		assertThat(chain.getHandler()).isInstanceOf(PreFlightRequestHandler.class);
 		assertThat(mapping.getRequiredCorsConfig().getAllowedOrigins()).containsExactly("*");
 	}
 
@@ -144,7 +150,7 @@ class CorsAbstractHandlerMappingTests {
 
 		assertThat(chain).isNotNull();
 		assertThat(chain.getHandler()).isNotNull();
-		assertThat(chain.getHandler().getClass().getSimpleName()).isEqualTo("PreFlightHandler");
+		assertThat(chain.getHandler()).isInstanceOf(PreFlightRequestHandler.class);
 		assertThat(mapping.getRequiredCorsConfig().getAllowedOrigins()).containsExactly("*");
 	}
 
@@ -172,7 +178,7 @@ class CorsAbstractHandlerMappingTests {
 
 		assertThat(chain).isNotNull();
 		assertThat(chain.getHandler()).isNotNull();
-		assertThat(chain.getHandler().getClass().getSimpleName()).isEqualTo("PreFlightHandler");
+		assertThat(chain.getHandler()).isInstanceOf(PreFlightRequestHandler.class);
 
 		CorsConfiguration config = mapping.getRequiredCorsConfig();
 		assertThat(config).isNotNull();

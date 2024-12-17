@@ -18,6 +18,7 @@ package org.springframework.validation.method;
 
 import java.util.Collection;
 import java.util.List;
+import java.util.function.BiFunction;
 
 import org.springframework.context.MessageSourceResolvable;
 import org.springframework.core.MethodParameter;
@@ -62,13 +63,16 @@ public class ParameterValidationResult {
 	@Nullable
 	private final Object containerKey;
 
+	private final BiFunction<MessageSourceResolvable, Class<?>, Object> sourceLookup;
+
 
 	/**
 	 * Create a {@code ParameterValidationResult}.
 	 */
 	public ParameterValidationResult(
 			MethodParameter param, @Nullable Object arg, Collection<? extends MessageSourceResolvable> errors,
-			@Nullable Object container, @Nullable Integer index, @Nullable Object key) {
+			@Nullable Object container, @Nullable Integer index, @Nullable Object key,
+			BiFunction<MessageSourceResolvable, Class<?>, Object> sourceLookup) {
 
 		Assert.notNull(param, "MethodParameter is required");
 		Assert.notEmpty(errors, "`resolvableErrors` must not be empty");
@@ -78,18 +82,7 @@ public class ParameterValidationResult {
 		this.container = container;
 		this.containerIndex = index;
 		this.containerKey = key;
-	}
-
-	/**
-	 * Create a {@code ParameterValidationResult}.
-	 * @deprecated in favor of
-	 * {@link ParameterValidationResult#ParameterValidationResult(MethodParameter, Object, Collection, Object, Integer, Object)}
-	 */
-	@Deprecated(since = "6.1.3", forRemoval = true)
-	public ParameterValidationResult(
-			MethodParameter param, @Nullable Object arg, Collection<? extends MessageSourceResolvable> errors) {
-
-		this(param, arg, errors, null, null, null);
+		this.sourceLookup = sourceLookup;
 	}
 
 
@@ -114,9 +107,9 @@ public class ParameterValidationResult {
 	 * <ul>
 	 * <li>For a constraints directly on a method parameter, error codes are
 	 * based on the names of the constraint annotation, the object, the method,
-	 * the parameter, and parameter type, e.g.
+	 * the parameter, and parameter type, for example,
 	 * {@code ["Max.myObject#myMethod.myParameter", "Max.myParameter", "Max.int", "Max"]}.
-	 * Arguments include the parameter itself as a {@link MessageSourceResolvable}, e.g.
+	 * Arguments include the parameter itself as a {@link MessageSourceResolvable}, for example,
 	 * {@code ["myObject#myMethod.myParameter", "myParameter"]}, followed by actual
 	 * constraint annotation attributes (i.e. excluding "message", "groups" and
 	 * "payload") in alphabetical order of attribute names.
@@ -164,6 +157,17 @@ public class ParameterValidationResult {
 		return this.containerKey;
 	}
 
+	/**
+	 * Unwrap the source behind the given error. For Jakarta Bean validation the
+	 * source is a {@link jakarta.validation.ConstraintViolation}.
+	 * @param sourceType the expected source type
+	 * @return the source object of the given type
+	 * @since 6.2
+	 */
+	@SuppressWarnings("unchecked")
+	public <T> T unwrap(MessageSourceResolvable error, Class<T> sourceType) {
+		return (T) this.sourceLookup.apply(error, sourceType);
+	}
 
 	@Override
 	public boolean equals(@Nullable Object other) {
@@ -173,8 +177,8 @@ public class ParameterValidationResult {
 		if (!super.equals(other)) {
 			return false;
 		}
-		ParameterValidationResult otherResult = (ParameterValidationResult) other;
-		return (getMethodParameter().equals(otherResult.getMethodParameter()) &&
+		return (other instanceof ParameterValidationResult otherResult &&
+				getMethodParameter().equals(otherResult.getMethodParameter()) &&
 				ObjectUtils.nullSafeEquals(getArgument(), otherResult.getArgument()) &&
 				ObjectUtils.nullSafeEquals(getContainerIndex(), otherResult.getContainerIndex()) &&
 				ObjectUtils.nullSafeEquals(getContainerKey(), otherResult.getContainerKey()));

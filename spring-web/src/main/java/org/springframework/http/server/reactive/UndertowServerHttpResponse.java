@@ -88,13 +88,6 @@ class UndertowServerHttpResponse extends AbstractListenerServerHttpResponse impl
 	}
 
 	@Override
-	@Deprecated
-	public Integer getRawStatusCode() {
-		Integer status = super.getRawStatusCode();
-		return (status != null ? status : this.exchange.getStatusCode());
-	}
-
-	@Override
 	protected void applyStatusCode() {
 		HttpStatusCode status = super.getStatusCode();
 		if (status != null) {
@@ -122,6 +115,7 @@ class UndertowServerHttpResponse extends AbstractListenerServerHttpResponse impl
 				}
 				cookie.setSecure(httpCookie.isSecure());
 				cookie.setHttpOnly(httpCookie.isHttpOnly());
+				// TODO: add "Partitioned" attribute when Undertow supports it
 				cookie.setSameSiteMode(httpCookie.getSameSite());
 				this.exchange.setResponseCookie(cookie);
 			}

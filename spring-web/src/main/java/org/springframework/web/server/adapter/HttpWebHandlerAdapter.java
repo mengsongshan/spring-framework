@@ -1,5 +1,5 @@
 /*
- * Copyright 2002-2023 the original author or authors.
+ * Copyright 2002-2024 the original author or authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -152,6 +152,7 @@ public class HttpWebHandlerAdapter extends WebHandlerDecorator implements HttpHa
 	/**
 	 * Return the configured {@link ServerCodecConfigurer}.
 	 */
+	@SuppressWarnings("NullAway")
 	public ServerCodecConfigurer getCodecConfigurer() {
 		if (this.codecConfigurer == null) {
 			setCodecConfigurer(ServerCodecConfigurer.create());
@@ -414,14 +415,16 @@ public class HttpWebHandlerAdapter extends WebHandlerDecorator implements HttpHa
 
 		private void doOnTerminate(ServerRequestObservationContext context) {
 			ServerHttpResponse response = context.getResponse();
-			if (response.isCommitted()) {
-				this.observation.stop();
-			}
-			else {
-				response.beforeCommit(() -> {
+			if (response != null) {
+				if (response.isCommitted()) {
 					this.observation.stop();
-					return Mono.empty();
-				});
+				}
+				else {
+					response.beforeCommit(() -> {
+						this.observation.stop();
+						return Mono.empty();
+					});
+				}
 			}
 		}
 	}

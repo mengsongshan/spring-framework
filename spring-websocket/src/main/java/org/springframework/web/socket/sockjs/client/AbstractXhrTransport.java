@@ -1,5 +1,5 @@
 /*
- * Copyright 2002-2022 the original author or authors.
+ * Copyright 2002-2024 the original author or authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -106,13 +106,6 @@ public abstract class AbstractXhrTransport implements XhrTransport {
 
 		connectInternal(request, handler, receiveUrl, handshakeHeaders, session, connectFuture);
 		return connectFuture;
-	}
-
-	@Deprecated
-	protected void connectInternal(TransportRequest request, WebSocketHandler handler,
-			URI receiveUrl, HttpHeaders handshakeHeaders, XhrClientSockJsSession session,
-			org.springframework.util.concurrent.SettableListenableFuture<WebSocketSession> connectFuture) {
-		throw new UnsupportedOperationException("connectInternal has been deprecated in favor of connectInternal");
 	}
 
 	protected abstract void connectInternal(TransportRequest request, WebSocketHandler handler,

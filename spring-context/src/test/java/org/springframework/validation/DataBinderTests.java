@@ -36,7 +36,6 @@ import java.util.Optional;
 import java.util.Set;
 import java.util.TreeSet;
 
-import org.assertj.core.api.IntegerAssert;
 import org.junit.jupiter.api.Test;
 
 import org.springframework.beans.BeanWrapper;
@@ -2042,7 +2041,7 @@ class DataBinderTests {
 
 		binder.bind(pvs);
 		assertThat(tb.getIntegerList()).hasSize(257);
-		assertThat(tb.getIntegerList(), IntegerAssert.class).element(256).isEqualTo(1);
+		assertThat(tb.getIntegerList()).element(256).isEqualTo(1);
 		assertThat(binder.getBindingResult().getFieldValue("integerList[256]")).isEqualTo(1);
 	}
 
@@ -2055,7 +2054,7 @@ class DataBinderTests {
 			.withMessageContaining("DataBinder is already initialized - call setAutoGrowCollectionLimit before other configuration methods");
 	}
 
-	@Test // SPR-15009
+	@Test  // SPR-15009
 	void setCustomMessageCodesResolverBeforeInitializeBindingResultForBeanPropertyAccess() {
 		TestBean testBean = new TestBean();
 		DataBinder binder = new DataBinder(testBean, "testBean");
@@ -2072,7 +2071,7 @@ class DataBinderTests {
 		assertThat(((BeanWrapper) binder.getInternalBindingResult().getPropertyAccessor()).getAutoGrowCollectionLimit()).isEqualTo(512);
 	}
 
-	@Test // SPR-15009
+	@Test  // SPR-15009
 	void setCustomMessageCodesResolverBeforeInitializeBindingResultForDirectFieldAccess() {
 		TestBean testBean = new TestBean();
 		DataBinder binder = new DataBinder(testBean, "testBean");
@@ -2126,7 +2125,7 @@ class DataBinderTests {
 			.withMessageContaining("DataBinder is already initialized with MessageCodesResolver");
 	}
 
-	@Test // gh-24347
+	@Test  // gh-24347
 	void overrideBindingResultType() {
 		TestBean testBean = new TestBean();
 		DataBinder binder = new DataBinder(testBean, "testBean");

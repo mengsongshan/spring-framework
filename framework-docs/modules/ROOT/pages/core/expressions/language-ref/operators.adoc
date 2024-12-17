@@ -8,6 +8,8 @@ The Spring Expression Language supports the following kinds of operators:
 * xref:core/expressions/language-ref/operators.adoc#expressions-operators-string[String Operators]
 * xref:core/expressions/language-ref/operators.adoc#expressions-operators-mathematical[Mathematical Operators]
 * xref:core/expressions/language-ref/operators.adoc#expressions-assignment[The Assignment Operator]
+* xref:core/expressions/language-ref/operators.adoc#expressions-operators-overloaded[Overloaded Operators]
+
 
 
 [[expressions-operators-relational]]
@@ -22,7 +24,7 @@ The following listing shows a few examples of relational operators:
 ======
 Java::
 +
-[source,java,indent=0,subs="verbatim,quotes",role="primary"]
+[source,java,indent=0,subs="verbatim,quotes"]
 ----
 	// evaluates to true
 	boolean trueValue = parser.parseExpression("2 == 2").getValue(Boolean.class);
@@ -39,7 +41,7 @@ Java::
 
 Kotlin::
 +
-[source,kotlin,indent=0,subs="verbatim,quotes",role="secondary"]
+[source,kotlin,indent=0,subs="verbatim,quotes"]
 ----
 	// evaluates to true
 	val trueValue = parser.parseExpression("2 == 2").getValue(Boolean::class.java)
@@ -76,7 +78,6 @@ expression is embedded (such as in an XML document). The textual equivalents are
 * `ge` (`>=`)
 * `eq` (`==`)
 * `ne` (`!=`)
-* `not` (`!`)
 
 All of the textual operators are case-insensitive.
 
@@ -88,7 +89,7 @@ shows examples of all three:
 ======
 Java::
 +
-[source,java,indent=0,subs="verbatim,quotes",role="primary"]
+[source,java,indent=0,subs="verbatim,quotes"]
 ----
 	boolean result;
 
@@ -127,7 +128,7 @@ Java::
 
 Kotlin::
 +
-[source,kotlin,indent=0,subs="verbatim,quotes",role="secondary"]
+[source,kotlin,indent=0,subs="verbatim,quotes"]
 ----
 	// evaluates to true
 	var result = parser.parseExpression(
@@ -163,15 +164,13 @@ Kotlin::
 ----
 ======
 
-[NOTE]
+[CAUTION]
 ====
-The left operand to the `between` operator must be a single value, and the right operand
-must be a 2-element list which defines the range.
+The syntax for the `between` operator is `<input> between {<range_begin>, <range_end>}`,
+which is effectively a shortcut for `<input> >= <range_begin> && <input> \<= <range_end>}`.
 
-The `between` operator returns `true` if the left operand is _between_ the two elements
-in the range, inclusive (using a comparison algorithm based on `java.lang.Comparable`).
-In addition, the first element in the range must be less than or equal to the second
-element in the range.
+Consequently, `1 between {1, 5}` evaluates to `true`, while `1 between {5, 1}` evaluates
+to `false`.
 ====
 
 CAUTION: Be careful with primitive types, as they are immediately boxed up to their
@@ -182,7 +181,7 @@ wrapper types. For example, `1 instanceof T(int)` evaluates to `false`, while
 [[expressions-operators-logical]]
 == Logical Operators
 
-SpEL supports the following logical operators:
+SpEL supports the following logical (`boolean`) operators:
 
 * `and` (`&&`)
 * `or` (`||`)
@@ -196,7 +195,7 @@ The following example shows how to use the logical operators:
 ======
 Java::
 +
-[source,java,indent=0,subs="verbatim,quotes",role="primary"]
+[source,java,indent=0,subs="verbatim,quotes"]
 ----
 	// -- AND --
 
@@ -229,7 +228,7 @@ Java::
 
 Kotlin::
 +
-[source,kotlin,indent=0,subs="verbatim,quotes",role="secondary"]
+[source,kotlin,indent=0,subs="verbatim,quotes"]
 ----
 	// -- AND --
 
@@ -278,7 +277,7 @@ The following example shows the `String` operators in use:
 ======
 Java::
 +
-[source,java,indent=0,subs="verbatim,quotes",role="primary"]
+[source,java,indent=0,subs="verbatim,quotes"]
 ----
 	// -- Concatenation --
 
@@ -301,7 +300,7 @@ Java::
 
 Kotlin::
 +
-[source,kotlin,indent=0,subs="verbatim,quotes",role="secondary"]
+[source,kotlin,indent=0,subs="verbatim,quotes"]
 ----
 	// -- Concatenation --
 
@@ -359,7 +358,7 @@ The following example shows the mathematical operators in use:
 ======
 Java::
 +
-[source,java,indent=0,subs="verbatim,quotes",role="primary"]
+[source,java,indent=0,subs="verbatim,quotes"]
 ----
 	Inventor inventor = new Inventor();
 	EvaluationContext context = SimpleEvaluationContext.forReadWriteDataBinding().build();
@@ -416,6 +415,8 @@ Java::
 
 	int maxInt = parser.parseExpression("(2^31) - 1").getValue(int.class);  // Integer.MAX_VALUE
 
+	int minInt = parser.parseExpression("-2^31").getValue(int.class);  // Integer.MIN_VALUE
+
 	// -- Operator precedence --
 
 	int minusTwentyOne = parser.parseExpression("1+2-3*8").getValue(int.class);  // -21
@@ -423,7 +424,7 @@ Java::
 
 Kotlin::
 +
-[source,kotlin,indent=0,subs="verbatim,quotes",role="secondary"]
+[source,kotlin,indent=0,subs="verbatim,quotes"]
 ----
 	val inventor = Inventor()
 	val context = SimpleEvaluationContext.forReadWriteDataBinding().build()
@@ -480,6 +481,8 @@ Kotlin::
 
 	val maxInt = parser.parseExpression("(2^31) - 1").getValue(Int::class.java)  // Integer.MAX_VALUE
 
+	val minInt = parser.parseExpression("-2^31").getValue(Int::class.java)  // Integer.MIN_VALUE
+
 	// -- Operator precedence --
 
 	val minusTwentyOne = parser.parseExpression("1+2-3*8").getValue(Int::class.java)  // -21	
@@ -498,7 +501,7 @@ listing shows both ways to use the assignment operator:
 ======
 Java::
 +
-[source,java,indent=0,subs="verbatim,quotes",role="primary"]
+[source,java,indent=0,subs="verbatim,quotes"]
 ----
 	Inventor inventor = new Inventor();
 	EvaluationContext context = SimpleEvaluationContext.forReadWriteDataBinding().build();
@@ -512,7 +515,7 @@ Java::
 
 Kotlin::
 +
-[source,kotlin,indent=0,subs="verbatim,quotes",role="secondary"]
+[source,kotlin,indent=0,subs="verbatim,quotes"]
 ----
 	val inventor = Inventor()
 	val context = SimpleEvaluationContext.forReadWriteDataBinding().build()
@@ -526,3 +529,83 @@ Kotlin::
 ======
 
 
+[[expressions-operators-overloaded]]
+== Overloaded Operators
+
+By default, the mathematical operations defined in SpEL's `Operation` enum (`ADD`,
+`SUBTRACT`, `DIVIDE`, `MULTIPLY`, `MODULUS`, and `POWER`) support simple types like
+numbers. By providing an implementation of `OperatorOverloader`, the expression language
+can support these operations on other types.
+
+For example, if we want to overload the `ADD` operator to allow two lists to be
+concatenated using the `+` sign, we can implement a custom `OperatorOverloader` as
+follows.
+
+[source,java,indent=0,subs="verbatim,quotes"]
+----
+	pubic class ListConcatenation implements OperatorOverloader {
+
+		@Override
+		public boolean overridesOperation(Operation operation, Object left, Object right) {
+			return (operation == Operation.ADD &&
+					left instanceof List && right instanceof List);
+		}
+
+		@Override
+		@SuppressWarnings("unchecked")
+		public Object operate(Operation operation, Object left, Object right) {
+			if (operation == Operation.ADD &&
+					left instanceof List list1 && right instanceof List list2) {
+
+				List result = new ArrayList(list1);
+				result.addAll(list2);
+				return result;
+			}
+			throw new UnsupportedOperationException(
+				"No overload for operation %s and operands [%s] and [%s]"
+					.formatted(operation, left, right));
+		}
+	}
+----
+
+If we register `ListConcatenation` as the `OperatorOverloader` in a
+`StandardEvaluationContext`, we can then evaluate expressions like `{1, 2, 3} + {4, 5}`
+as demonstrated in the following example.
+
+[tabs]
+======
+Java::
++
+[source,java,indent=0,subs="verbatim,quotes"]
+----
+	StandardEvaluationContext context = new StandardEvaluationContext();
+	context.setOperatorOverloader(new ListConcatenation());
+
+	// evaluates to a new list: [1, 2, 3, 4, 5]
+	parser.parseExpression("{1, 2, 3} + {2 + 2, 5}").getValue(context, List.class);
+----
+
+Kotlin::
++
+[source,kotlin,indent=0,subs="verbatim,quotes"]
+----
+	StandardEvaluationContext context = StandardEvaluationContext()
+	context.setOperatorOverloader(ListConcatenation())
+
+	// evaluates to a new list: [1, 2, 3, 4, 5]
+	parser.parseExpression("{1, 2, 3} + {2 + 2, 5}").getValue(context, List::class.java)
+----
+======
+
+[NOTE]
+====
+An `OperatorOverloader` does not change the default semantics for an operator. For
+example, `2 + 2` in the above example still evaluates to `4`.
+====
+
+[CAUTION]
+====
+Any expression that uses an overloaded operator cannot be compiled. See
+xref:core/expressions/evaluation.adoc#expressions-compiler-limitations[Compiler Limitations]
+for details.
+====

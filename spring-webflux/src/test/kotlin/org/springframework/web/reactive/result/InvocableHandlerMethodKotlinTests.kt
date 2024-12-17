@@ -1,5 +1,5 @@
 /*
- * Copyright 2002-2023 the original author or authors.
+ * Copyright 2002-2024 the original author or authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -41,6 +41,7 @@ import reactor.core.publisher.Mono
 import reactor.test.StepVerifier
 import java.lang.reflect.Method
 import java.time.Duration
+import kotlin.reflect.KClass
 import kotlin.reflect.jvm.javaMethod
 
 /**
@@ -111,9 +112,16 @@ class InvocableHandlerMethodKotlinTests {
 	@Test
 	fun privateController() {
 		this.resolvers.add(stubResolver("foo"))
-		val method = PrivateCoroutinesController::singleArg.javaMethod!!
-		val result = invoke(PrivateCoroutinesController(), method,"foo")
+		val method = PrivateController::singleArg.javaMethod!!
+		val result = invoke(PrivateController(), method,"foo")
 		assertHandlerResultValue(result, "success:foo")
+	}
+
+	@Test
+	fun privateFunction() {
+		val method = PrivateController::class.java.getDeclaredMethod("private")
+		val result = invoke(PrivateController(), method)
+		assertHandlerResultValue(result, "private")
 	}
 
 	@Test
@@ -176,8 +184,16 @@ class InvocableHandlerMethodKotlinTests {
 
 	@Test
 	fun nullReturnValue() {
-		val method = NullResultController::nullable.javaMethod!!
+		val method = NullResultController::nullableReturnValue.javaMethod!!
 		val result = invoke(NullResultController(), method)
+		assertHandlerResultValue(result, null)
+	}
+
+	@Test
+	fun nullParameter() {
+		this.resolvers.add(stubResolver(null, String::class.java))
+		val method = NullResultController::nullableParameter.javaMethod!!
+		val result = invoke(NullResultController(), method, null)
 		assertHandlerResultValue(result, null)
 	}
 
@@ -190,11 +206,103 @@ class InvocableHandlerMethodKotlinTests {
 	}
 
 	@Test
-	fun valueClassDefaultValue() {
+	fun valueClassReturnValue() {
+		val method = ValueClassController::valueClassReturnValue.javaMethod!!
+		val result = invoke(ValueClassController(), method)
+		assertHandlerResultValue(result, "foo")
+	}
+
+	@Test
+	fun resultOfUnitReturnValue() {
+		val method = ValueClassController::resultOfUnitReturnValue.javaMethod!!
+		val result = invoke(ValueClassController(), method)
+		assertHandlerResultValue(result, null)
+	}
+
+	@Test
+	fun valueClassWithDefaultValue() {
 		this.resolvers.add(stubResolver(null, Double::class.java))
 		val method = ValueClassController::valueClassWithDefault.javaMethod!!
 		val result = invoke(ValueClassController(), method)
 		assertHandlerResultValue(result, "3.1")
+	}
+
+	@Test
+	fun valueClassWithInit() {
+		this.resolvers.add(stubResolver("", String::class.java))
+		val method = ValueClassController::valueClassWithInit.javaMethod!!
+		val result = invoke(ValueClassController(), method)
+		assertExceptionThrown(result, IllegalArgumentException::class)
+	}
+
+	@Test
+	fun valueClassWithNullable() {
+		this.resolvers.add(stubResolver(null, LongValueClass::class.java))
+		val method = ValueClassController::valueClassWithNullable.javaMethod!!
+		val result = invoke(ValueClassController(), method, null)
+		assertHandlerResultValue(result, "null")
+	}
+
+	@Test
+	fun valueClassWithPrivateConstructor() {
+		this.resolvers.add(stubResolver(1L, Long::class.java))
+		val method = ValueClassController::valueClassWithPrivateConstructor.javaMethod!!
+		val result = invoke(ValueClassController(), method, 1L)
+		assertHandlerResultValue(result, "1")
+	}
+
+	@Test
+	fun suspendingValueClass() {
+		this.resolvers.add(stubResolver(1L, Long::class.java))
+		val method = SuspendingValueClassController::valueClass.javaMethod!!
+		val result = invoke(SuspendingValueClassController(), method,1L)
+		assertHandlerResultValue(result, "1")
+	}
+
+	@Test
+	fun suspendingValueClassReturnValue() {
+		val method = SuspendingValueClassController::valueClassReturnValue.javaMethod!!
+		val result = invoke(SuspendingValueClassController(), method)
+		assertHandlerResultValue(result, "foo")
+	}
+
+	@Test
+	fun suspendingResultOfUnitReturnValue() {
+		val method = SuspendingValueClassController::resultOfUnitReturnValue.javaMethod!!
+		val result = invoke(SuspendingValueClassController(), method)
+		assertComplete(result)
+	}
+
+	@Test
+	fun suspendingValueClassWithDefaultValue() {
+		this.resolvers.add(stubResolver(null, Double::class.java))
+		val method = SuspendingValueClassController::valueClassWithDefault.javaMethod!!
+		val result = invoke(SuspendingValueClassController(), method)
+		assertHandlerResultValue(result, "3.1")
+	}
+
+	@Test
+	fun suspendingValueClassWithInit() {
+		this.resolvers.add(stubResolver("", String::class.java))
+		val method = SuspendingValueClassController::valueClassWithInit.javaMethod!!
+		val result = invoke(SuspendingValueClassController(), method)
+		assertExceptionThrown(result, IllegalArgumentException::class)
+	}
+
+	@Test
+	fun suspendingValueClassWithNullable() {
+		this.resolvers.add(stubResolver(null, LongValueClass::class.java))
+		val method = SuspendingValueClassController::valueClassWithNullable.javaMethod!!
+		val result = invoke(SuspendingValueClassController(), method, null)
+		assertHandlerResultValue(result, "null")
+	}
+
+	@Test
+	fun suspendingValueClassWithPrivateConstructor() {
+		this.resolvers.add(stubResolver(1L, Long::class.java))
+		val method = SuspendingValueClassController::valueClassWithPrivateConstructor.javaMethod!!
+		val result = invoke(SuspendingValueClassController(), method, 1L)
+		assertHandlerResultValue(result, "1")
 	}
 
 	@Test
@@ -222,6 +330,15 @@ class InvocableHandlerMethodKotlinTests {
 			.resolveMethod()
 		val result = invoke(ExtensionHandler(), method)
 		assertHandlerResultValue(result, "foo-20")
+	}
+
+	@Test
+	fun genericParameter() {
+		val horse = Animal("horse")
+		this.resolvers.add(stubResolver(horse))
+		val method = AnimalController::handle.javaMethod!!
+		val result = invoke(AnimalController(), method, null)
+		assertHandlerResultValue(result, horse.name)
 	}
 
 
@@ -256,6 +373,15 @@ class InvocableHandlerMethodKotlinTests {
 				}.verifyComplete()
 	}
 
+	private fun assertExceptionThrown(mono: Mono<HandlerResult>, exceptionClass: KClass<out Throwable>) {
+		StepVerifier.create(mono.flatMap { t -> t.returnValue as Mono<*> }).verifyError(exceptionClass.java)
+	}
+
+	private fun assertComplete(mono: Mono<HandlerResult>) {
+		StepVerifier.create(mono.flatMap { t -> t.returnValue as Mono<*> }).verifyComplete()
+	}
+
+
 	class CoroutinesController {
 
 		suspend fun singleArg(q: String?): String {
@@ -284,12 +410,14 @@ class InvocableHandlerMethodKotlinTests {
 		}
 	}
 
-	private class PrivateCoroutinesController {
+	private class PrivateController {
 
 		suspend fun singleArg(q: String?): String {
 			delay(1)
 			return "success:$q"
 		}
+
+		private fun private() = "private"
 	}
 
 	class DefaultValueController {
@@ -307,19 +435,68 @@ class InvocableHandlerMethodKotlinTests {
 		fun unit() {
 		}
 
-		fun nullable(): String? {
+		fun nullableReturnValue(): String? {
 			return null
+		}
+
+		fun nullableParameter(value: String?): String? {
+			return value
 		}
 	}
 
 	class ValueClassController {
 
-		fun valueClass(limit: LongValueClass) =
-			"${limit.value}"
+		fun valueClass(limit: LongValueClass) = "${limit.value}"
 
-		fun valueClassWithDefault(limit: DoubleValueClass = DoubleValueClass(3.1)) =
-			"${limit.value}"
+		fun valueClassReturnValue() = StringValueClass("foo")
 
+		fun resultOfUnitReturnValue() = Result.success(Unit)
+
+		fun valueClassWithDefault(limit: DoubleValueClass = DoubleValueClass(3.1)) = "${limit.value}"
+
+		fun valueClassWithInit(valueClass: ValueClassWithInit) = valueClass
+
+		fun valueClassWithNullable(limit: LongValueClass?) = "${limit?.value}"
+
+		fun valueClassWithPrivateConstructor(limit: ValueClassWithPrivateConstructor) = "${limit.value}"
+	}
+
+	class SuspendingValueClassController {
+
+		suspend fun valueClass(limit: LongValueClass): String {
+			delay(1)
+			return "${limit.value}"
+		}
+
+		suspend fun valueClassReturnValue(): StringValueClass {
+			delay(1)
+			return StringValueClass("foo")
+		}
+
+		suspend fun resultOfUnitReturnValue(): Result<Unit> {
+			delay(1)
+			return Result.success(Unit)
+		}
+
+		suspend fun valueClassWithDefault(limit: DoubleValueClass = DoubleValueClass(3.1)): String {
+			delay(1)
+			return "${limit.value}"
+		}
+
+		suspend fun valueClassWithInit(valueClass: ValueClassWithInit): ValueClassWithInit {
+			delay(1)
+			return valueClass
+		}
+
+		suspend fun valueClassWithNullable(limit: LongValueClass?): String {
+			delay(1)
+			return "${limit?.value}"
+		}
+
+		suspend fun valueClassWithPrivateConstructor(limit: ValueClassWithPrivateConstructor): String {
+			delay(1)
+			return "${limit.value}"
+		}
 	}
 
 	class PropertyAccessorController {
@@ -340,11 +517,43 @@ class InvocableHandlerMethodKotlinTests {
 		}
 	}
 
+	private abstract class GenericController<T : Named> {
+
+		fun handle(named: T) = named.name
+	}
+
+	private class AnimalController : GenericController<Animal>()
+
+	interface Named {
+		val name: String
+	}
+
+	data class Animal(override val name: String) : Named
+
+	@JvmInline
+	value class StringValueClass(val value: String)
+
 	@JvmInline
 	value class LongValueClass(val value: Long)
 
 	@JvmInline
 	value class DoubleValueClass(val value: Double)
+
+	@JvmInline
+	value class ValueClassWithInit(val value: String) {
+		init {
+			if (value.isEmpty()) {
+				throw IllegalArgumentException()
+			}
+		}
+	}
+
+	@JvmInline
+	value class ValueClassWithPrivateConstructor private constructor(val value: Long) {
+		companion object {
+			fun from(value: Long) = ValueClassWithPrivateConstructor(value)
+		}
+	}
 
 	class CustomException(message: String) : Throwable(message)
 }

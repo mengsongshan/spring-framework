@@ -93,6 +93,21 @@ class BeanDefinitionPropertiesCodeGeneratorTests {
 	}
 
 	@Test
+	void setFallbackWhenFalse() {
+		this.beanDefinition.setFallback(false);
+		compile((actual, compiled) -> {
+			assertThat(compiled.getSourceFile()).doesNotContain("setFallback");
+			assertThat(actual.isFallback()).isFalse();
+		});
+	}
+
+	@Test
+	void setFallbackWhenTrue() {
+		this.beanDefinition.setFallback(true);
+		compile((actual, compiled) -> assertThat(actual.isFallback()).isTrue());
+	}
+
+	@Test
 	void setScopeWhenEmptyString() {
 		this.beanDefinition.setScope("");
 		compile((actual, compiled) -> {
@@ -559,7 +574,7 @@ class BeanDefinitionPropertiesCodeGeneratorTests {
 
 	private void assertHasDeclaredFieldsHint(Class<?> beanType) {
 		assertThat(RuntimeHintsPredicates.reflection()
-				.onType(beanType).withMemberCategory(MemberCategory.DECLARED_FIELDS))
+				.onType(beanType).withMemberCategory(MemberCategory.INVOKE_DECLARED_FIELDS))
 				.accepts(this.generationContext.getRuntimeHints());
 	}
 
@@ -616,7 +631,7 @@ class BeanDefinitionPropertiesCodeGeneratorTests {
 
 	}
 
-	interface Initializable {
+	public interface Initializable {
 
 		void initialize();
 	}
@@ -628,7 +643,7 @@ class BeanDefinitionPropertiesCodeGeneratorTests {
 		}
 	}
 
-	interface Disposable {
+	public interface Disposable {
 
 		void dispose();
 	}

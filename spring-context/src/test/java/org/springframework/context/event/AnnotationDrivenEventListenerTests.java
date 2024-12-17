@@ -33,7 +33,6 @@ import java.util.concurrent.TimeUnit;
 import jakarta.annotation.PostConstruct;
 import jakarta.inject.Inject;
 import org.junit.jupiter.api.AfterEach;
-import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.api.Test;
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
@@ -277,25 +276,6 @@ class AnnotationDrivenEventListenerTests {
 		this.context.publishEvent(event);
 		this.eventCollector.assertEvent(replyEventListener, event);
 		this.eventCollector.assertEvent(listener, "test");
-		this.eventCollector.assertTotalEventsCount(2);
-	}
-
-	@Test
-	@SuppressWarnings("deprecation")
-	void listenableFutureReply() {
-		load(TestEventListener.class, ReplyEventListener.class);
-		org.springframework.util.concurrent.SettableListenableFuture<String> future =
-				new org.springframework.util.concurrent.SettableListenableFuture<>();
-		future.set("dummy");
-		AnotherTestEvent event = new AnotherTestEvent(this, future);
-		ReplyEventListener replyEventListener = this.context.getBean(ReplyEventListener.class);
-		TestEventListener listener = this.context.getBean(TestEventListener.class);
-
-		this.eventCollector.assertNoEventReceived(listener);
-		this.eventCollector.assertNoEventReceived(replyEventListener);
-		this.context.publishEvent(event);
-		this.eventCollector.assertEvent(replyEventListener, event);
-		this.eventCollector.assertEvent(listener, "dummy"); // reply
 		this.eventCollector.assertTotalEventsCount(2);
 	}
 
@@ -657,14 +637,6 @@ class AnnotationDrivenEventListenerTests {
 		this.context.publishEvent("test");
 		this.eventCollector.assertEvent(listener, "test");
 		this.eventCollector.assertTotalEventsCount(1);
-	}
-
-	@Test @Disabled  // SPR-15122
-	void listenersReceiveEarlyEvents() {
-		load(EventOnPostConstruct.class, OrderedTestListener.class);
-		OrderedTestListener listener = this.context.getBean(OrderedTestListener.class);
-
-		assertThat(listener.order).contains("first", "second", "third");
 	}
 
 	@Test

@@ -18,6 +18,9 @@ package org.springframework.http.converter.xml;
 
 import java.nio.charset.StandardCharsets;
 
+import javax.xml.namespace.QName;
+
+import jakarta.xml.bind.JAXBElement;
 import jakarta.xml.bind.Marshaller;
 import jakarta.xml.bind.Unmarshaller;
 import jakarta.xml.bind.annotation.XmlAttribute;
@@ -93,6 +96,8 @@ class Jaxb2RootElementHttpMessageConverterTests {
 				.as("Converter does not support writing @XmlRootElement subclass").isTrue();
 		assertThat(converter.canWrite(rootElementCglib.getClass(), null))
 				.as("Converter does not support writing @XmlRootElement subclass").isTrue();
+		assertThat(converter.canWrite(JAXBElement.class, null))
+				.as("Converter does not support writing JAXBElement").isTrue();
 		assertThat(converter.canWrite(Type.class, null))
 				.as("Converter supports writing @XmlType").isFalse();
 	}
@@ -170,9 +175,9 @@ class Jaxb2RootElementHttpMessageConverterTests {
 				]>
 				<rootElement><external>&lol9;</external></rootElement>""";
 		MockHttpInputMessage inputMessage = new MockHttpInputMessage(content.getBytes(StandardCharsets.UTF_8));
-		assertThatExceptionOfType(HttpMessageNotReadableException.class).isThrownBy(() ->
-				this.converter.read(RootElement.class, inputMessage))
-			.withMessageContaining("DOCTYPE");
+		assertThatExceptionOfType(HttpMessageNotReadableException.class)
+				.isThrownBy(() -> this.converter.read(RootElement.class, inputMessage))
+				.withMessageContaining("DOCTYPE");
 	}
 
 	@Test
@@ -183,7 +188,19 @@ class Jaxb2RootElementHttpMessageConverterTests {
 				.as("Invalid content-type").isEqualTo(MediaType.APPLICATION_XML);
 		DifferenceEvaluator ev = chain(Default, downgradeDifferencesToEqual(XML_STANDALONE));
 		assertThat(XmlContent.of(outputMessage.getBodyAsString(StandardCharsets.UTF_8)))
-			.isSimilarTo("<rootElement><type s=\"Hello World\"/></rootElement>", ev);
+				.isSimilarTo("<rootElement><type s=\"Hello World\"/></rootElement>", ev);
+	}
+
+	@Test
+	void writeJaxbElementRootElement() throws Exception {
+		MockHttpOutputMessage outputMessage = new MockHttpOutputMessage();
+		JAXBElement<?> jaxbElement = new JAXBElement<>(new QName("custom"), MyCustomElement.class, new MyCustomElement("field1", "field2"));
+		converter.write(jaxbElement, null, outputMessage);
+		assertThat(outputMessage.getHeaders().getContentType())
+				.as("Invalid content-type").isEqualTo(MediaType.APPLICATION_XML);
+		DifferenceEvaluator ev = chain(Default, downgradeDifferencesToEqual(XML_STANDALONE));
+		assertThat(XmlContent.of(outputMessage.getBodyAsString(StandardCharsets.UTF_8)))
+				.isSimilarTo("<custom><field1>field1</field1><field2>field2</field2></custom>", ev);
 	}
 
 	@Test

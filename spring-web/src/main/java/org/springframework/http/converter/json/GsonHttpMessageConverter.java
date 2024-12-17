@@ -1,5 +1,5 @@
 /*
- * Copyright 2002-2023 the original author or authors.
+ * Copyright 2002-2024 the original author or authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -96,7 +96,7 @@ public class GsonHttpMessageConverter extends AbstractJsonHttpMessageConverter {
 	protected void writeInternal(Object object, @Nullable Type type, Writer writer) throws Exception {
 		// In Gson, toJson with a type argument will exclusively use that given type,
 		// ignoring the actual type of the object... which might be more specific,
-		// e.g. a subclass of the specified type which includes additional fields.
+		// for example, a subclass of the specified type which includes additional fields.
 		// As a consequence, we're only passing in parameterized type declarations
 		// which might contain extra generics that the object instance doesn't retain.
 		if (type instanceof ParameterizedType) {
@@ -105,10 +105,12 @@ public class GsonHttpMessageConverter extends AbstractJsonHttpMessageConverter {
 		else {
 			getGson().toJson(object, writer);
 		}
+		writer.flush();
 	}
 
 	@Override
 	protected boolean supportsRepeatableWrites(Object o) {
 		return true;
 	}
+
 }

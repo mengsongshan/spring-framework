@@ -1,5 +1,5 @@
 /*
- * Copyright 2002-2023 the original author or authors.
+ * Copyright 2002-2024 the original author or authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -123,8 +123,9 @@ abstract class ScheduledAnnotationReactiveSupport {
 		Publisher<?> publisher = getPublisherFor(method, targetBean);
 		Supplier<ScheduledTaskObservationContext> contextSupplier =
 				() -> new ScheduledTaskObservationContext(targetBean, method);
+		String displayName = targetBean.getClass().getName() + "." + method.getName();
 		return new SubscribingRunnable(publisher, shouldBlock, scheduled.scheduler(),
-				subscriptionTrackerRegistry, observationRegistrySupplier, contextSupplier);
+				subscriptionTrackerRegistry, displayName, observationRegistrySupplier, contextSupplier);
 	}
 
 	/**
@@ -192,6 +193,8 @@ abstract class ScheduledAnnotationReactiveSupport {
 
 		final boolean shouldBlock;
 
+		final String displayName;
+
 		@Nullable
 		private final String qualifier;
 
@@ -202,12 +205,13 @@ abstract class ScheduledAnnotationReactiveSupport {
 		final Supplier<ScheduledTaskObservationContext> contextSupplier;
 
 		SubscribingRunnable(Publisher<?> publisher, boolean shouldBlock,
-				@Nullable String qualifier, List<Runnable> subscriptionTrackerRegistry,
-				Supplier<ObservationRegistry> observationRegistrySupplier,
-				Supplier<ScheduledTaskObservationContext> contextSupplier) {
+							@Nullable String qualifier, List<Runnable> subscriptionTrackerRegistry,
+							String displayName, Supplier<ObservationRegistry> observationRegistrySupplier,
+							Supplier<ScheduledTaskObservationContext> contextSupplier) {
 
 			this.publisher = publisher;
 			this.shouldBlock = shouldBlock;
+			this.displayName = displayName;
 			this.qualifier = qualifier;
 			this.subscriptionTrackerRegistry = subscriptionTrackerRegistry;
 			this.observationRegistrySupplier = observationRegistrySupplier;
@@ -244,6 +248,7 @@ abstract class ScheduledAnnotationReactiveSupport {
 		private void subscribe(TrackingSubscriber subscriber, Observation observation) {
 			this.subscriptionTrackerRegistry.add(subscriber);
 			if (reactorPresent) {
+				observation.start();
 				Flux.from(this.publisher)
 						.contextWrite(context -> context.put(ObservationThreadLocalAccessor.KEY, observation))
 						.subscribe(subscriber);
@@ -251,6 +256,11 @@ abstract class ScheduledAnnotationReactiveSupport {
 			else {
 				this.publisher.subscribe(subscriber);
 			}
+		}
+
+		@Override
+		public String toString() {
+			return this.displayName;
 		}
 	}
 
@@ -300,7 +310,6 @@ abstract class ScheduledAnnotationReactiveSupport {
 		@Override
 		public void onSubscribe(Subscription subscription) {
 			this.subscription = subscription;
-			this.observation.start();
 			subscription.request(Integer.MAX_VALUE);
 		}
 

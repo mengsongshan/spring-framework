@@ -1,5 +1,5 @@
 /*
- * Copyright 2002-2023 the original author or authors.
+ * Copyright 2002-2024 the original author or authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -25,7 +25,7 @@ import org.springframework.web.util.HtmlUtils;
  * Superclass for tags that output content that might get HTML-escaped.
  *
  * <p>Provides a "htmlEscape" property for explicitly specifying whether to
- * apply HTML escaping. If not set, a page-level default (e.g. from the
+ * apply HTML escaping. If not set, a page-level default (for example, from the
  * HtmlEscapeTag) or an application-wide default (the "defaultHtmlEscape"
  * context-param in {@code web.xml}) is used.
  *

@@ -1,5 +1,5 @@
 /*
- * Copyright 2002-2023 the original author or authors.
+ * Copyright 2002-2024 the original author or authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -125,7 +125,7 @@ class SseHandlerFunctionIntegrationTests extends AbstractRouterFunctionIntegrati
 
 	private static class SseHandler {
 
-		private static final Flux<Long> INTERVAL = testInterval(Duration.ofMillis(100), 2);
+		private static final Flux<Long> INTERVAL = testInterval(Duration.ofMillis(1), 2);
 
 		Mono<ServerResponse> string(ServerRequest request) {
 			return ServerResponse.ok()

@@ -55,8 +55,7 @@ import org.springframework.validation.SmartValidator;
  * {@link CustomValidatorBean} and {@link LocalValidatorFactoryBean},
  * and as the primary implementation of the {@link SmartValidator} interface.
  *
- * <p>As of Spring Framework 5.0, this adapter is fully compatible with
- * Bean Validation 1.1 as well as 2.0.
+ * <p>This adapter is fully compatible with Bean Validation 1.1 as well as 2.0.
  *
  * @author Juergen Hoeller
  * @author Sam Brannen
@@ -249,7 +248,7 @@ public class SpringValidatorAdapter implements SmartValidator, jakarta.validatio
 	 * (see {@link #getResolvableField}). Afterwards, it adds all actual constraint
 	 * annotation attributes (i.e. excluding "message", "groups" and "payload") in
 	 * alphabetical order of their attribute names.
-	 * <p>Can be overridden to e.g. add further attributes from the constraint descriptor.
+	 * <p>Can be overridden to, for example, add further attributes from the constraint descriptor.
 	 * @param objectName the name of the target object
 	 * @param field the field that caused the binding error
 	 * @param descriptor the JSR-303 constraint descriptor

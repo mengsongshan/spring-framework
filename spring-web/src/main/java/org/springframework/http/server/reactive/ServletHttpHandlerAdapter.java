@@ -1,5 +1,5 @@
 /*
- * Copyright 2002-2023 the original author or authors.
+ * Copyright 2002-2024 the original author or authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -148,7 +148,7 @@ public class ServletHttpHandlerAdapter implements Servlet {
 
 		throw new IllegalArgumentException("Expected a single Servlet mapping: " +
 				"either the default Servlet mapping (i.e. '/'), " +
-				"or a path based mapping (e.g. '/*', '/foo/*'). " +
+				"or a path based mapping (for example, '/*', '/foo/*'). " +
 				"Actual mappings: " + mappings + " for Servlet '" + name + "'");
 	}
 
@@ -210,7 +210,7 @@ public class ServletHttpHandlerAdapter implements Servlet {
 	protected ServletServerHttpResponse createResponse(HttpServletResponse response,
 			AsyncContext context, ServletServerHttpRequest request) throws IOException {
 
-		return new ServletServerHttpResponse(response, context, getDataBufferFactory(), getBufferSize(), request);
+		return new ServletServerHttpResponse(response, context, getDataBufferFactory(), request);
 	}
 
 	@Override
@@ -237,7 +237,7 @@ public class ServletHttpHandlerAdapter implements Servlet {
 		}
 		catch (IllegalStateException ex) {
 			// Ignore: AsyncContext recycled and should not be used
-			// e.g. TIMEOUT_LISTENER (above) may have completed the AsyncContext
+			// for example, TIMEOUT_LISTENER (above) may have completed the AsyncContext
 		}
 	}
 

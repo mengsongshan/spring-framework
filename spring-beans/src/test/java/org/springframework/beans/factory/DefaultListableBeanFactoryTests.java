@@ -18,9 +18,7 @@ package org.springframework.beans.factory;
 
 import java.io.Closeable;
 import java.io.Serializable;
-import java.lang.reflect.Constructor;
 import java.lang.reflect.Field;
-import java.lang.reflect.Method;
 import java.net.MalformedURLException;
 import java.text.NumberFormat;
 import java.text.ParseException;
@@ -81,7 +79,6 @@ import org.springframework.beans.testfixture.beans.factory.DummyFactory;
 import org.springframework.core.DefaultParameterNameDiscoverer;
 import org.springframework.core.MethodParameter;
 import org.springframework.core.Ordered;
-import org.springframework.core.ParameterNameDiscoverer;
 import org.springframework.core.ResolvableType;
 import org.springframework.core.annotation.AnnotationAwareOrderComparator;
 import org.springframework.core.annotation.Order;
@@ -120,20 +117,6 @@ import static org.mockito.Mockito.verify;
 class DefaultListableBeanFactoryTests {
 
 	private final DefaultListableBeanFactory lbf = new DefaultListableBeanFactory();
-
-	{
-		// No parameter name discovery expected unless named arguments are used
-		lbf.setParameterNameDiscoverer(new ParameterNameDiscoverer() {
-			@Override
-			public String[] getParameterNames(Method method) {
-				throw new UnsupportedOperationException();
-			}
-			@Override
-			public String[] getParameterNames(Constructor<?> ctor) {
-				throw new UnsupportedOperationException();
-			}
-		});
-	}
 
 
 	@Test
@@ -857,6 +840,7 @@ class DefaultListableBeanFactoryTests {
 
 	@Test
 	void aliasCircle() {
+		lbf.setAllowBeanDefinitionOverriding(true);
 		lbf.registerAlias("test", "test2");
 		lbf.registerAlias("test2", "test3");
 
@@ -884,11 +868,17 @@ class DefaultListableBeanFactoryTests {
 
 	@Test
 	void beanDefinitionOverriding() {
+		lbf.setAllowBeanDefinitionOverriding(true);
 		lbf.registerBeanDefinition("test", new RootBeanDefinition(TestBean.class));
+		// Override "test" bean definition.
 		lbf.registerBeanDefinition("test", new RootBeanDefinition(NestedTestBean.class));
+		// Temporary "test2" alias for nonexistent bean.
 		lbf.registerAlias("otherTest", "test2");
+		// Reassign "test2" alias to "test".
 		lbf.registerAlias("test", "test2");
+		// Assign "testX" alias to "test" as well.
 		lbf.registerAlias("test", "testX");
+		// Register new "testX" bean definition which also removes the "testX" alias for "test".
 		lbf.registerBeanDefinition("testX", new RootBeanDefinition(TestBean.class));
 
 		assertThat(lbf.getBean("test")).isInstanceOf(NestedTestBean.class);
@@ -923,6 +913,7 @@ class DefaultListableBeanFactoryTests {
 
 	@Test
 	void beanDefinitionOverridingWithAlias() {
+		lbf.setAllowBeanDefinitionOverriding(true);
 		lbf.registerBeanDefinition("test", new RootBeanDefinition(TestBean.class));
 		lbf.registerAlias("test", "testAlias");
 		lbf.registerBeanDefinition("test", new RootBeanDefinition(NestedTestBean.class));
@@ -934,6 +925,7 @@ class DefaultListableBeanFactoryTests {
 
 	@Test
 	void beanDefinitionOverridingWithConstructorArgumentMismatch() {
+		lbf.setAllowBeanDefinitionOverriding(true);
 		RootBeanDefinition bd1 = new RootBeanDefinition(NestedTestBean.class);
 		bd1.getConstructorArgumentValues().addIndexedArgumentValue(1, "value1");
 		lbf.registerBeanDefinition("test", bd1);
@@ -1213,6 +1205,7 @@ class DefaultListableBeanFactoryTests {
 
 	@Test
 	void reregisterBeanDefinition() {
+		lbf.setAllowBeanDefinitionOverriding(true);
 		RootBeanDefinition bd1 = new RootBeanDefinition(TestBean.class);
 		bd1.setScope(BeanDefinition.SCOPE_PROTOTYPE);
 		lbf.registerBeanDefinition("testBean", bd1);
@@ -1323,6 +1316,7 @@ class DefaultListableBeanFactoryTests {
 
 	@Test
 	void withOverloadedSetters() {
+		lbf.setAllowBeanDefinitionOverriding(true);
 		RootBeanDefinition rbd = new RootBeanDefinition(SetterOverload.class);
 		rbd.getPropertyValues().add("object", "a String");
 		lbf.registerBeanDefinition("overloaded", rbd);
@@ -1342,6 +1336,11 @@ class DefaultListableBeanFactoryTests {
 		rbd.getPropertyValues().add("value", Duration.ofSeconds(1000));
 		lbf.registerBeanDefinition("overloaded", rbd);
 		assertThat(lbf.getBean(SetterOverload.class).getObject()).isEqualTo("1000s");
+
+		rbd = new RootBeanDefinition(SetterOverload.class);
+		rbd.getPropertyValues().add("value", "1000");
+		lbf.registerBeanDefinition("overloaded", rbd);
+		assertThat(lbf.getBean(SetterOverload.class).getObject()).isEqualTo("1000i");
 	}
 
 	@Test
@@ -1724,18 +1723,73 @@ class DefaultListableBeanFactoryTests {
 		assertThat(bean.getBeanName()).isEqualTo("bd1");
 	}
 
+	/**
+	 * {@code determineHighestPriorityCandidate()} should reject duplicate
+	 * priorities for the highest priority detected.
+	 *
+	 * @see #getBeanByTypeWithMultipleNonHighestPriorityCandidates()
+	 */
 	@Test
-	void getBeanByTypeWithMultiplePriority() {
+	void getBeanByTypeWithMultipleHighestPriorityCandidates() {
 		lbf.setDependencyComparator(AnnotationAwareOrderComparator.INSTANCE);
 		RootBeanDefinition bd1 = new RootBeanDefinition(HighPriorityTestBean.class);
-		RootBeanDefinition bd2 = new RootBeanDefinition(HighPriorityTestBean.class);
+		RootBeanDefinition bd2 = new RootBeanDefinition(LowPriorityTestBean.class);
+		RootBeanDefinition bd3 = new RootBeanDefinition(HighPriorityTestBean.class);
 		lbf.registerBeanDefinition("bd1", bd1);
 		lbf.registerBeanDefinition("bd2", bd2);
+		lbf.registerBeanDefinition("bd3", bd3);
 
 		assertThatExceptionOfType(NoUniqueBeanDefinitionException.class)
 				.isThrownBy(() -> lbf.getBean(TestBean.class))
-				.withMessageContaining("Multiple beans found with the same priority")
-				.withMessageContaining("5"); // conflicting priority
+				.withMessageContaining("Multiple beans found with the same highest priority (5) among candidates: ");
+	}
+
+	/**
+	 * {@code determineHighestPriorityCandidate()} should ignore duplicate
+	 * priorities for any priority other than the highest, and the order in
+	 * which beans is declared should not affect the outcome.
+	 *
+	 * @see #getBeanByTypeWithMultipleHighestPriorityCandidates()
+	 */
+	@Test  // gh-33733
+	void getBeanByTypeWithMultipleNonHighestPriorityCandidates() {
+		getBeanByTypeWithMultipleNonHighestPriorityCandidates(
+				PriorityService1.class,
+				PriorityService2A.class,
+				PriorityService2B.class,
+				PriorityService3.class
+			);
+
+		getBeanByTypeWithMultipleNonHighestPriorityCandidates(
+				PriorityService3.class,
+				PriorityService2B.class,
+				PriorityService2A.class,
+				PriorityService1.class
+			);
+
+		getBeanByTypeWithMultipleNonHighestPriorityCandidates(
+				PriorityService2A.class,
+				PriorityService1.class,
+				PriorityService2B.class,
+				PriorityService3.class
+			);
+
+		getBeanByTypeWithMultipleNonHighestPriorityCandidates(
+				PriorityService2A.class,
+				PriorityService3.class,
+				PriorityService1.class,
+				PriorityService2B.class
+			);
+	}
+
+	private void getBeanByTypeWithMultipleNonHighestPriorityCandidates(Class<?>... classes) {
+		lbf.setDependencyComparator(AnnotationAwareOrderComparator.INSTANCE);
+		for (Class<?> clazz : classes) {
+			lbf.registerBeanDefinition(clazz.getSimpleName(), new RootBeanDefinition(clazz));
+		}
+
+		PriorityService bean = lbf.getBean(PriorityService.class);
+		assertThat(bean).isExactlyInstanceOf(PriorityService1.class);
 	}
 
 	@Test
@@ -1963,6 +2017,42 @@ class DefaultListableBeanFactoryTests {
 	}
 
 	@Test
+	void getBeanByTypeInstanceWithConstructorIgnoresInstanceSupplier() {
+		RootBeanDefinition bd1 = createConstructorDependencyBeanDefinition(99);
+		bd1.setInstanceSupplier(() -> new ConstructorDependency(new TestBean("test")));
+		lbf.registerBeanDefinition("bd1", bd1);
+
+		ConstructorDependency defaultInstance = lbf.getBean(ConstructorDependency.class);
+		assertThat(defaultInstance.beanName).isEqualTo("bd1");
+		assertThat(defaultInstance.spouseAge).isEqualTo(0);
+
+		ConstructorDependency argsInstance = lbf.getBean(ConstructorDependency.class, 42);
+		assertThat(argsInstance.beanName).isEqualTo("bd1");
+		assertThat(argsInstance.spouseAge).isEqualTo(42);
+	}
+
+	@Test
+	void getBeanByTypeInstanceWithFactoryMethodIgnoresInstanceSupplier() {
+		RootBeanDefinition bd1 = new RootBeanDefinition(TestBean.class);
+		bd1.setScope(BeanDefinition.SCOPE_PROTOTYPE);
+		bd1.setFactoryBeanName("config");
+		bd1.setFactoryMethodName("create");
+		bd1.setInstanceSupplier(() -> new TestBean("test"));
+		lbf.registerBeanDefinition("config", new RootBeanDefinition(BeanWithFactoryMethod.class));
+		lbf.registerBeanDefinition("bd1", bd1);
+
+		TestBean defaultInstance = lbf.getBean(TestBean.class);
+		assertThat(defaultInstance.getBeanName()).isEqualTo("bd1");
+		assertThat(defaultInstance.getName()).isEqualTo("test");
+		assertThat(defaultInstance.getAge()).isEqualTo(0);
+
+		TestBean argsInstance = lbf.getBean(TestBean.class, "another", 42);
+		assertThat(argsInstance.getBeanName()).isEqualTo("bd1");
+		assertThat(argsInstance.getName()).isEqualTo("another");
+		assertThat(argsInstance.getAge()).isEqualTo(42);
+	}
+
+	@Test
 	@SuppressWarnings("rawtypes")
 	void beanProviderSerialization() throws Exception {
 		lbf.setSerializationId("test");
@@ -2180,9 +2270,39 @@ class DefaultListableBeanFactoryTests {
 		lbf.registerBeanDefinition("test", bd);
 		lbf.registerBeanDefinition("spouse", bd2);
 
-		assertThatExceptionOfType(UnsatisfiedDependencyException.class).isThrownBy(() ->
-				lbf.autowire(DependenciesBean.class, AutowireCapableBeanFactory.AUTOWIRE_BY_TYPE, true))
-			.withCauseExactlyInstanceOf(NoUniqueBeanDefinitionException.class);
+		assertThatExceptionOfType(UnsatisfiedDependencyException.class)
+				.isThrownBy(() -> lbf.autowire(DependenciesBean.class, AutowireCapableBeanFactory.AUTOWIRE_BY_TYPE, true))
+				.withCauseExactlyInstanceOf(NoUniqueBeanDefinitionException.class);
+	}
+
+	@Test
+	void autowireBeanByTypeWithTwoPrimaryCandidatesInOneAncestor() {
+		DefaultListableBeanFactory parent = new DefaultListableBeanFactory();
+		RootBeanDefinition bd = new RootBeanDefinition(TestBean.class);
+		bd.setPrimary(true);
+		RootBeanDefinition bd2 = new RootBeanDefinition(TestBean.class);
+		bd2.setPrimary(true);
+		parent.registerBeanDefinition("test", bd);
+		parent.registerBeanDefinition("spouse", bd2);
+		DefaultListableBeanFactory lbf = new DefaultListableBeanFactory(parent);
+
+		assertThatExceptionOfType(UnsatisfiedDependencyException.class)
+				.isThrownBy(() -> lbf.autowire(DependenciesBean.class, AutowireCapableBeanFactory.AUTOWIRE_BY_TYPE, true))
+				.withCauseExactlyInstanceOf(NoUniqueBeanDefinitionException.class);
+	}
+
+	@Test
+	void autowireBeanByTypeWithTwoPrimaryFactoryBeans(){
+		DefaultListableBeanFactory lbf = new DefaultListableBeanFactory();
+		RootBeanDefinition bd1 = new RootBeanDefinition(LazyInitFactory.class);
+		RootBeanDefinition bd2 = new RootBeanDefinition(LazyInitFactory.class);
+		bd1.setPrimary(true);
+		bd2.setPrimary(true);
+		lbf.registerBeanDefinition("bd1", bd1);
+		lbf.registerBeanDefinition("bd2", bd2);
+		assertThatExceptionOfType(UnsatisfiedDependencyException.class)
+				.isThrownBy(() -> lbf.autowire(FactoryBeanDependentBean.class, AutowireCapableBeanFactory.AUTOWIRE_BY_TYPE, true))
+				.withCauseExactlyInstanceOf(NoUniqueBeanDefinitionException.class);
 	}
 
 	@Test
@@ -3168,6 +3288,10 @@ class DefaultListableBeanFactoryTests {
 			return tb;
 		}
 
+		public TestBean create(String name, int age) {
+			return new TestBean(name, age);
+		}
+
 		public TestBean createWithArgs(String arg) {
 			TestBean tb = new TestBean();
 			tb.setName(arg);
@@ -3369,12 +3493,12 @@ class DefaultListableBeanFactoryTests {
 			return this.value;
 		}
 
-		public void setValue(int length) {
-			this.value = length + "i";
-		}
-
 		public void setValue(Duration duration) {
 			this.value = duration.getSeconds() + "s";
+		}
+
+		public void setValue(int length) {
+			this.value = length + "i";
 		}
 	}
 
@@ -3452,6 +3576,26 @@ class DefaultListableBeanFactoryTests {
 		public KnowsIfInstantiated() {
 			instantiated = true;
 		}
+	}
+
+
+	interface PriorityService {
+	}
+
+	@Priority(1)
+	static class PriorityService1 implements PriorityService {
+	}
+
+	@Priority(2)
+	static class PriorityService2A implements PriorityService {
+	}
+
+	@Priority(2)
+	static class PriorityService2B implements PriorityService {
+	}
+
+	@Priority(3)
+	static class PriorityService3 implements PriorityService {
 	}
 
 

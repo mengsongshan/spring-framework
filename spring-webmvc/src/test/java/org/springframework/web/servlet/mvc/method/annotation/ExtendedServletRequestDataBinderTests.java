@@ -16,14 +16,18 @@
 
 package org.springframework.web.servlet.mvc.method.annotation;
 
-import java.util.HashMap;
 import java.util.Map;
 
+import jakarta.servlet.ServletRequest;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
+import org.springframework.beans.MutablePropertyValues;
 import org.springframework.beans.testfixture.beans.TestBean;
+import org.springframework.core.ResolvableType;
 import org.springframework.web.bind.ServletRequestDataBinder;
+import org.springframework.web.bind.annotation.BindParam;
+import org.springframework.web.bind.support.BindParamNameResolver;
 import org.springframework.web.servlet.HandlerMapping;
 import org.springframework.web.testfixture.servlet.MockHttpServletRequest;
 
@@ -38,41 +42,82 @@ class ExtendedServletRequestDataBinderTests {
 
 	private MockHttpServletRequest request;
 
+
 	@BeforeEach
 	void setup() {
 		this.request = new MockHttpServletRequest();
 	}
 
+
 	@Test
-	void createBinder() {
-		Map<String, String> uriTemplateVars = new HashMap<>();
-		uriTemplateVars.put("name", "nameValue");
-		uriTemplateVars.put("age", "25");
-		request.setAttribute(HandlerMapping.URI_TEMPLATE_VARIABLES_ATTRIBUTE, uriTemplateVars);
+	void createBinderViaSetters() {
+		request.setAttribute(
+				HandlerMapping.URI_TEMPLATE_VARIABLES_ATTRIBUTE,
+				Map.of("name", "John", "age", "25"));
+
+		request.addHeader("Some-Int-Array", "1");
+		request.addHeader("Some-Int-Array", "2");
 
 		TestBean target = new TestBean();
 		ServletRequestDataBinder binder = new ExtendedServletRequestDataBinder(target, "");
 		binder.bind(request);
 
-		assertThat(target.getName()).isEqualTo("nameValue");
+		assertThat(target.getName()).isEqualTo("John");
+		assertThat(target.getAge()).isEqualTo(25);
+		assertThat(target.getSomeIntArray()).containsExactly(1, 2);
+	}
+
+	@Test
+	void createBinderViaConstructor() {
+		request.setAttribute(
+				HandlerMapping.URI_TEMPLATE_VARIABLES_ATTRIBUTE,
+				Map.of("name", "John", "age", "25"));
+
+		request.addHeader("Some-Int-Array", "1");
+		request.addHeader("Some-Int-Array", "2");
+
+		ServletRequestDataBinder binder = new ExtendedServletRequestDataBinder(null);
+		binder.setTargetType(ResolvableType.forClass(DataBean.class));
+		binder.setNameResolver(new BindParamNameResolver());
+		binder.construct(request);
+
+		DataBean bean = (DataBean) binder.getTarget();
+
+		assertThat(bean.name()).isEqualTo("John");
+		assertThat(bean.age()).isEqualTo(25);
+		assertThat(bean.someIntArray()).containsExactly(1, 2);
+	}
+
+	@Test
+	void uriVarsAndHeadersAddedConditionally() {
+		request.addParameter("name", "John");
+		request.addParameter("age", "25");
+
+		request.addHeader("name", "Johnny");
+		request.setAttribute(HandlerMapping.URI_TEMPLATE_VARIABLES_ATTRIBUTE, Map.of("age", "26"));
+
+		TestBean target = new TestBean();
+		ServletRequestDataBinder binder = new ExtendedServletRequestDataBinder(target, "");
+		binder.bind(request);
+
+		assertThat(target.getName()).isEqualTo("John");
 		assertThat(target.getAge()).isEqualTo(25);
 	}
 
 	@Test
-	void uriTemplateVarAndRequestParam() {
-		request.addParameter("age", "35");
+	void headerPredicate() {
+		TestBinder binder = new TestBinder();
+		binder.addHeaderPredicate(name -> !name.equalsIgnoreCase("Another-Int-Array"));
 
-		Map<String, String> uriTemplateVars = new HashMap<>();
-		uriTemplateVars.put("name", "nameValue");
-		uriTemplateVars.put("age", "25");
-		request.setAttribute(HandlerMapping.URI_TEMPLATE_VARIABLES_ATTRIBUTE, uriTemplateVars);
+		MutablePropertyValues mpvs = new MutablePropertyValues();
+		request.addHeader("Priority", "u1");
+		request.addHeader("Some-Int-Array", "1");
+		request.addHeader("Another-Int-Array", "1");
 
-		TestBean target = new TestBean();
-		ServletRequestDataBinder binder = new ExtendedServletRequestDataBinder(target, "");
-		binder.bind(request);
+		binder.addBindValues(mpvs, request);
 
-		assertThat(target.getName()).isEqualTo("nameValue");
-		assertThat(target.getAge()).isEqualTo(35);
+		assertThat(mpvs.size()).isEqualTo(1);
+		assertThat(mpvs.get("someIntArray")).isEqualTo("1");
 	}
 
 	@Test
@@ -83,6 +128,23 @@ class ExtendedServletRequestDataBinderTests {
 
 		assertThat(target.getName()).isNull();
 		assertThat(target.getAge()).isEqualTo(0);
+	}
+
+
+	private record DataBean(String name, int age, @BindParam("Some-Int-Array") Integer[] someIntArray) {
+	}
+
+
+	private static class TestBinder extends ExtendedServletRequestDataBinder {
+
+		public TestBinder() {
+			super(null);
+		}
+
+		@Override
+		public void addBindValues(MutablePropertyValues mpvs, ServletRequest request) {
+			super.addBindValues(mpvs, request);
+		}
 	}
 
 }

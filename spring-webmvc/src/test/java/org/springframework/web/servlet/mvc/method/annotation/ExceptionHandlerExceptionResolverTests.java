@@ -24,6 +24,7 @@ import java.util.Collections;
 import java.util.Locale;
 
 import jakarta.servlet.ServletException;
+import jakarta.servlet.http.HttpServletResponse;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -50,6 +51,7 @@ import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.ResponseBody;
 import org.springframework.web.bind.annotation.ResponseStatus;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
+import org.springframework.web.context.request.async.AsyncRequestNotUsableException;
 import org.springframework.web.context.support.WebApplicationObjectSupport;
 import org.springframework.web.method.HandlerMethod;
 import org.springframework.web.method.annotation.ModelMethodProcessor;
@@ -58,6 +60,8 @@ import org.springframework.web.method.support.HandlerMethodReturnValueHandler;
 import org.springframework.web.servlet.DispatcherServlet;
 import org.springframework.web.servlet.FlashMap;
 import org.springframework.web.servlet.ModelAndView;
+import org.springframework.web.servlet.function.HandlerFunction;
+import org.springframework.web.servlet.function.ServerResponse;
 import org.springframework.web.servlet.mvc.support.RedirectAttributes;
 import org.springframework.web.servlet.resource.ResourceHttpRequestHandler;
 import org.springframework.web.testfixture.servlet.MockHttpServletRequest;
@@ -65,9 +69,11 @@ import org.springframework.web.testfixture.servlet.MockHttpServletResponse;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.InstanceOfAssertFactories.LIST;
+import static org.mockito.BDDMockito.given;
+import static org.mockito.Mockito.mock;
 
 /**
- * Test fixture with {@link ExceptionHandlerExceptionResolver}.
+ * Tests for {@link ExceptionHandlerExceptionResolver}.
  *
  * @author Rossen Stoyanchev
  * @author Arjen Poutsma
@@ -77,6 +83,8 @@ import static org.assertj.core.api.InstanceOfAssertFactories.LIST;
  */
 @SuppressWarnings("unused")
 class ExceptionHandlerExceptionResolverTests {
+
+	//TODO
 
 	private static int DEFAULT_RESOLVER_COUNT;
 
@@ -252,6 +260,19 @@ class ExceptionHandlerExceptionResolverTests {
 	}
 
 	@Test
+	void resolveExceptionGlobalHandlerForHandlerFunction() throws Exception {
+		loadConfiguration(MyConfig.class);
+
+		IllegalAccessException ex = new IllegalAccessException();
+		HandlerFunction<ServerResponse> handlerFunction = req -> {
+			throw new IllegalAccessException();
+		};
+		ModelAndView mav = this.resolver.resolveException(this.request, this.response, handlerFunction, ex);
+
+		assertExceptionHandledAsBody(mav, "AnotherTestExceptionResolver: IllegalAccessException");
+	}
+
+	@Test
 	void resolveExceptionGlobalHandlerOrdered() throws Exception {
 		loadConfiguration(MyConfig.class);
 
@@ -399,6 +420,55 @@ class ExceptionHandlerExceptionResolverTests {
 				this.request, this.response, handler, new IllegalStateException());
 
 		assertExceptionHandledAsBody(mav, "DefaultTestExceptionResolver: IllegalStateException");
+	}
+
+	@Test
+	void resolveExceptionAsyncRequestNotUsable() throws Exception {
+		HttpServletResponse response = mock();
+		given(response.getOutputStream()).willThrow(new AsyncRequestNotUsableException("Simulated I/O failure"));
+
+		IllegalArgumentException ex = new IllegalArgumentException();
+		HandlerMethod handlerMethod = new HandlerMethod(new ResponseBodyController(), "handle");
+		this.resolver.afterPropertiesSet();
+		ModelAndView mav = this.resolver.resolveException(this.request, response, handlerMethod, ex);
+
+		assertThat(mav).isNotNull();
+		assertThat(mav.isEmpty()).isTrue();
+	}
+
+	@Test
+	void resolveExceptionJsonMediaType() throws UnsupportedEncodingException, NoSuchMethodException {
+		IllegalArgumentException ex = new IllegalArgumentException();
+		HandlerMethod handlerMethod = new HandlerMethod(new MediaTypeController(), "handle");
+		this.resolver.afterPropertiesSet();
+		this.request.addHeader("Accept", "application/json");
+		ModelAndView mav = this.resolver.resolveException(this.request, this.response, handlerMethod, ex);
+
+		assertExceptionHandledAsBody(mav, "jsonBody");
+	}
+
+	@Test
+	void resolveExceptionHtmlMediaType() throws NoSuchMethodException {
+		IllegalArgumentException ex = new IllegalArgumentException();
+		HandlerMethod handlerMethod = new HandlerMethod(new MediaTypeController(), "handle");
+		this.resolver.afterPropertiesSet();
+		this.request.addHeader("Accept", "text/html");
+		ModelAndView mav = this.resolver.resolveException(this.request, this.response, handlerMethod, ex);
+
+		assertThat(mav).isNotNull();
+		assertThat(mav.getViewName()).isEqualTo("htmlView");
+	}
+
+	@Test
+	void resolveExceptionDefaultMediaType() throws NoSuchMethodException {
+		IllegalArgumentException ex = new IllegalArgumentException();
+		HandlerMethod handlerMethod = new HandlerMethod(new MediaTypeController(), "handle");
+		this.resolver.afterPropertiesSet();
+		this.request.addHeader("Accept", "*/*");
+		ModelAndView mav = this.resolver.resolveException(this.request, this.response, handlerMethod, ex);
+
+		assertThat(mav).isNotNull();
+		assertThat(mav.getViewName()).isEqualTo("htmlView");
 	}
 
 
@@ -629,6 +699,23 @@ class ExceptionHandlerExceptionResolverTests {
 		public Object beforeBodyWrite(Object body, MethodParameter returnType, MediaType selectedContentType,
 				Class<? extends HttpMessageConverter<?>> selectedConverterType, ServerHttpRequest request, ServerHttpResponse response) {
 			return null;
+		}
+	}
+
+	@Controller
+	static class MediaTypeController {
+
+		public void handle() {}
+
+		@ExceptionHandler(exception = IllegalArgumentException.class, produces = "application/json")
+		@ResponseBody
+		public String handleExceptionJson() {
+			return "jsonBody";
+		}
+
+		@ExceptionHandler(exception = IllegalArgumentException.class, produces = {"text/html", "*/*"})
+		public String handleExceptionHtml() {
+			return "htmlView";
 		}
 	}
 
